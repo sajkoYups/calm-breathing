@@ -8,7 +8,9 @@ interface TechniqueCardProps {
 }
 
 const { width } = Dimensions.get('window');
-const cardWidth = (width - 48) / 2; // 2 columns with padding
+const horizontalPadding = 16; // Padding on each side
+const gap = 12; // Gap between cards
+const cardWidth = (width - horizontalPadding * 2 - gap) / 2; // 2 columns with padding and gap
 
 // Color gradients for each technique (Spotify-style)
 const getCardColors = (id: string, isCustom?: boolean) => {
@@ -66,7 +68,8 @@ const styles = StyleSheet.create({
     width: cardWidth,
     height: cardWidth * 1.2,
     marginBottom: 16,
-    marginHorizontal: 8,
+    marginRight: gap / 2,
+    marginLeft: gap / 2,
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
