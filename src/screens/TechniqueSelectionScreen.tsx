@@ -6,21 +6,25 @@ import { defaultTechniques } from '../data/breathingTechniques';
 
 interface TechniqueSelectionScreenProps {
   onSelectTechnique?: (technique: BreathingTechnique) => void;
+  onViewDetail?: (technique: BreathingTechnique) => void;
   onBack?: () => void;
 }
 
 export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> = ({
   onSelectTechnique,
+  onViewDetail,
   onBack,
 }) => {
-  const handleSelectTechnique = (technique: BreathingTechnique) => {
-    if (onSelectTechnique) {
+  const handleCardPress = (technique: BreathingTechnique) => {
+    if (onViewDetail) {
+      onViewDetail(technique);
+    } else if (onSelectTechnique) {
       onSelectTechnique(technique);
     }
   };
 
   const renderItem = ({ item }: { item: BreathingTechnique }) => (
-    <TechniqueCard technique={item} onPress={() => handleSelectTechnique(item)} />
+    <TechniqueCard technique={item} onPress={() => handleCardPress(item)} />
   );
 
   return (
@@ -35,8 +39,10 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
         data={defaultTechniques}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        numColumns={2}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        columnWrapperStyle={styles.row}
       />
     </View>
   );
@@ -61,10 +67,14 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: '#7B1FA2',
-    marginBottom: 16,
-    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 16,
   },
   list: {
+    paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  row: {
+    justifyContent: 'space-between',
   },
 });

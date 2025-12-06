@@ -7,3 +7,10 @@ export interface BreathingTechnique {
   holdExhale?: number;
   description?: string;
 }
+
+export type RootStackParamList = {
+  Welcome: undefined;
+  TechniqueSelection: undefined;
+  TechniqueDetail: { technique: BreathingTechnique };
+  Breathing: { technique: BreathingTechnique };
+};
