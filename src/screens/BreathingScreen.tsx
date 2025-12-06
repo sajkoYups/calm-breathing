@@ -42,101 +42,39 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ technique, onB
   const [timeRemaining, setTimeRemaining] = useState(technique.inhaleSeconds);
   const [cycleCount, setCycleCount] = useState(0);
   const [bubbleScale, setBubbleScale] = useState(0.5); // 0.5 to 1.0 scale
-  const scaleRef = useRef(0.5);
   const sessionStartTimeRef = useRef<number | null>(null);
   const hasSavedSessionRef = useRef(false);
+  const phaseStartTimeRef = useRef<number>(0);
+  const animationFrameRef = useRef<number | null>(null);
 
-  // Animation effect for smooth bubble scaling
+  // Timer system that updates phase and timeRemaining
   useEffect(() => {
     if (!isActive) {
+      setPhase('inhale');
+      setTimeRemaining(technique.inhaleSeconds);
       setBubbleScale(0.5);
-      scaleRef.current = 0.5;
       return;
     }
 
-    // Initialize bubble at starting size
-    setBubbleScale(0.5);
-    scaleRef.current = 0.5;
-
-    let animationFrame: number;
-    let currentPhase: BreathingPhase = 'inhale';
-    let phaseStartTime: number = performance.now();
-    let cycleStartTime: number = performance.now();
-
-    const inhaleDuration = technique.inhaleSeconds * 1000;
-    const exhaleDuration = technique.exhaleSeconds * 1000;
-    const holdInhaleDuration = (technique.holdInhale || 0) * 1000;
-    const holdExhaleDuration = (technique.holdExhale || 0) * 1000;
-    const totalCycleDuration = inhaleDuration + exhaleDuration + holdInhaleDuration + holdExhaleDuration;
-
-    const animate = (timestamp: number) => {
-      const elapsed = timestamp - phaseStartTime;
-      let newScale = 0.5;
-      let newPhase = currentPhase;
-      let newPhaseStartTime = phaseStartTime;
-
-      if (currentPhase === 'inhale') {
-        const progress = Math.min(elapsed / inhaleDuration, 1);
-        newScale = 0.5 + 0.5 * progress; // 0.5 to 1.0
-        if (progress >= 1) {
-          newPhase = technique.holdInhale && technique.holdInhale > 0 ? 'holdInhale' : 'exhale';
-          newPhaseStartTime = timestamp;
-        }
-      } else if (currentPhase === 'holdInhale') {
-        newScale = 1.0; // Stay at full size
-        if (elapsed >= holdInhaleDuration) {
-          newPhase = 'exhale';
-          newPhaseStartTime = timestamp;
-        }
-      } else if (currentPhase === 'exhale') {
-        const progress = Math.min(elapsed / exhaleDuration, 1);
-        newScale = 1.0 - 0.5 * progress; // 1.0 to 0.5
-        if (progress >= 1) {
-          newPhase = technique.holdExhale && technique.holdExhale > 0 ? 'holdExhale' : 'inhale';
-          newPhaseStartTime = timestamp;
-          if (newPhase === 'inhale') {
-            cycleStartTime = timestamp;
-          }
-        }
-      } else if (currentPhase === 'holdExhale') {
-        newScale = 0.5; // Stay at small size
-        if (elapsed >= holdExhaleDuration) {
-          newPhase = 'inhale';
-          newPhaseStartTime = timestamp;
-          cycleStartTime = timestamp;
-        }
-      }
-
-      setBubbleScale(newScale);
-      scaleRef.current = newScale;
-      currentPhase = newPhase;
-      phaseStartTime = newPhaseStartTime;
-
-      animationFrame = requestAnimationFrame(animate);
-    };
-
-    // Start animation on next frame
-    animationFrame = requestAnimationFrame((timestamp) => {
-      phaseStartTime = timestamp;
-      cycleStartTime = timestamp;
-      animate(timestamp);
-    });
-
-    return () => {
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-      }
-    };
-  }, [isActive, technique]);
-
-  useEffect(() => {
-    if (!isActive) return;
-
-    let interval: NodeJS.Timeout;
     let currentPhase: BreathingPhase = 'inhale';
     let currentTime = technique.inhaleSeconds;
     let cycle = 0;
 
+    // Get phase duration in seconds
+    const getPhaseDuration = (phase: BreathingPhase): number => {
+      switch (phase) {
+        case 'inhale':
+          return technique.inhaleSeconds;
+        case 'holdInhale':
+          return technique.holdInhale || 0;
+        case 'exhale':
+          return technique.exhaleSeconds;
+        case 'holdExhale':
+          return technique.holdExhale || 0;
+      }
+    };
+
+    // Update phase logic
     const updatePhase = () => {
       if (currentPhase === 'inhale') {
         if (technique.holdInhale && technique.holdInhale > 0) {
@@ -168,9 +106,16 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ technique, onB
 
       setPhase(currentPhase);
       setTimeRemaining(currentTime);
+      phaseStartTimeRef.current = performance.now();
     };
 
-    interval = setInterval(() => {
+    // Initialize phase start time
+    phaseStartTimeRef.current = performance.now();
+    setPhase(currentPhase);
+    setTimeRemaining(currentTime);
+
+    // Timer interval for phase updates
+    const timerInterval = setInterval(() => {
       if (currentTime > 0) {
         currentTime--;
         setTimeRemaining(currentTime);
@@ -180,9 +125,85 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ technique, onB
     }, 1000);
 
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(timerInterval);
     };
   }, [isActive, technique]);
+
+  // Animation system that smoothly interpolates based on elapsed time
+  useEffect(() => {
+    if (!isActive) {
+      setBubbleScale(0.5);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      return;
+    }
+
+    // Get phase duration in milliseconds
+    const getPhaseDuration = (phase: BreathingPhase): number => {
+      switch (phase) {
+        case 'inhale':
+          return technique.inhaleSeconds * 1000;
+        case 'holdInhale':
+          return (technique.holdInhale || 0) * 1000;
+        case 'exhale':
+          return technique.exhaleSeconds * 1000;
+        case 'holdExhale':
+          return (technique.holdExhale || 0) * 1000;
+      }
+    };
+
+    // Calculate bubble scale based on phase and progress
+    const calculateScale = (phase: BreathingPhase, progress: number): number => {
+      switch (phase) {
+        case 'inhale':
+          // Expand from 0.5 to 1.0 during inhale
+          return 0.5 + 0.5 * progress;
+        case 'holdInhale':
+          // Stay at full size (1.0)
+          return 1.0;
+        case 'exhale':
+          // Shrink from 1.0 to 0.5 during exhale
+          return 1.0 - 0.5 * progress;
+        case 'holdExhale':
+          // Stay at small size (0.5)
+          return 0.5;
+      }
+    };
+
+    // Animation frame for smooth bubble scaling
+    const animate = (timestamp: number) => {
+      const phaseDuration = getPhaseDuration(phase);
+      
+      if (phaseDuration === 0) {
+        // If phase has no duration, set scale immediately
+        const scale = calculateScale(phase, 1);
+        setBubbleScale(scale);
+      } else {
+        // Calculate elapsed time since phase started
+        const elapsed = timestamp - phaseStartTimeRef.current;
+        // Calculate progress: elapsed / total duration
+        const progress = Math.max(0, Math.min(1, elapsed / phaseDuration));
+        const scale = calculateScale(phase, progress);
+        setBubbleScale(scale);
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    // Start animation with current timestamp
+    const startTimestamp = performance.now();
+    phaseStartTimeRef.current = startTimestamp;
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [isActive, phase, technique]);
 
   const getPhaseText = () => {
     switch (phase) {
