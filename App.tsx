@@ -5,9 +5,20 @@ import { TechniqueSelectionScreen } from './src/screens/TechniqueSelectionScreen
 import { TechniqueDetailScreen } from './src/screens/TechniqueDetailScreen';
 import { CustomTechniqueScreen } from './src/screens/CustomTechniqueScreen';
 import { BreathingScreen } from './src/screens/BreathingScreen';
+import { HistoryScreen } from './src/screens/HistoryScreen';
+import { ProgressScreen } from './src/screens/ProgressScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { BreathingTechnique } from './src/types';
 
-type Screen = 'Welcome' | 'TechniqueSelection' | 'TechniqueDetail' | 'CustomTechnique' | 'Breathing';
+type Screen =
+  | 'Welcome'
+  | 'TechniqueSelection'
+  | 'TechniqueDetail'
+  | 'CustomTechnique'
+  | 'Breathing'
+  | 'History'
+  | 'Progress'
+  | 'Settings';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('Welcome');
@@ -69,6 +80,30 @@ export default function App() {
     setSelectedTechnique(null);
   };
 
+  const navigateToSettings = () => {
+    setCurrentScreen('Settings');
+  };
+
+  const navigateBackFromSettings = () => {
+    setCurrentScreen('TechniqueSelection');
+  };
+
+  const navigateToHistory = () => {
+    setCurrentScreen('History');
+  };
+
+  const navigateBackFromHistory = () => {
+    setCurrentScreen('Settings');
+  };
+
+  const navigateToProgress = () => {
+    setCurrentScreen('Progress');
+  };
+
+  const navigateBackFromProgress = () => {
+    setCurrentScreen('Settings');
+  };
+
   return (
     <>
       {currentScreen === 'Welcome' && (
@@ -79,6 +114,7 @@ export default function App() {
           key={refreshKey}
           onViewDetail={navigateToDetail}
           onAddCustom={navigateToCustomTechnique}
+          onSettings={navigateToSettings}
           onBack={navigateBack}
         />
       )}
@@ -102,6 +138,19 @@ export default function App() {
         <BreathingScreen
           technique={selectedTechnique}
           onBack={navigateBackFromBreathing}
+        />
+      )}
+      {currentScreen === 'History' && (
+        <HistoryScreen onBack={navigateBackFromHistory} />
+      )}
+      {currentScreen === 'Progress' && (
+        <ProgressScreen onBack={navigateBackFromProgress} />
+      )}
+      {currentScreen === 'Settings' && (
+        <SettingsScreen
+          onBack={navigateBackFromSettings}
+          onNavigateToHistory={navigateToHistory}
+          onNavigateToProgress={navigateToProgress}
         />
       )}
       <StatusBar style="auto" />

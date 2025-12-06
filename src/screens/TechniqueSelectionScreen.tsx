@@ -9,6 +9,7 @@ interface TechniqueSelectionScreenProps {
   onSelectTechnique?: (technique: BreathingTechnique) => void;
   onViewDetail?: (technique: BreathingTechnique) => void;
   onAddCustom?: () => void;
+  onSettings?: () => void;
   onBack?: () => void;
 }
 
@@ -16,6 +17,7 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
   onSelectTechnique,
   onViewDetail,
   onAddCustom,
+  onSettings,
   onBack,
 }) => {
   const [customTechniques, setCustomTechniques] = useState<BreathingTechnique[]>([]);
@@ -51,7 +53,14 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
         </TouchableOpacity>
       )}
       <View style={styles.header}>
-        <Text style={styles.title}>Choose a Technique</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.title}>Choose a Technique</Text>
+          {onSettings && (
+            <TouchableOpacity onPress={onSettings} style={styles.settingsButton}>
+              <Text style={styles.settingsButtonText}>⚙️</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {onAddCustom && (
           <TouchableOpacity onPress={onAddCustom} style={styles.addButton}>
             <Text style={styles.addButtonText}>+ Custom</Text>
@@ -92,11 +101,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 24,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: '#7B1FA2',
-    marginBottom: 16,
+    flex: 1,
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  settingsButtonText: {
+    fontSize: 24,
   },
   addButton: {
     backgroundColor: '#BA68C8',

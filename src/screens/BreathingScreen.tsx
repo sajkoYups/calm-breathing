@@ -1,11 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { BreathingTechnique } from '../types';
+import { saveSession } from '../utils/storage';
 
 interface BreathingScreenProps {
   technique: BreathingTechnique;
   onBack: () => void;
 }
+
+const saveSessionOnUnmount = async (
+  isActive: boolean,
+  cycleCount: number,
+  sessionStartTime: number | null,
+  technique: BreathingTechnique,
+  hasSaved: React.MutableRefObject<boolean>
+) => {
+  if (isActive && sessionStartTime && cycleCount > 0 && !hasSaved.current) {
+    const duration = Math.floor((Date.now() - sessionStartTime) / 1000);
+    try {
+      const session = {
+        id: `session-${Date.now()}`,
+        date: new Date().toISOString(),
+        techniqueId: technique.id,
+        techniqueName: technique.name,
+        duration,
+        cycles: cycleCount,
+      };
+      await saveSession(session);
+      hasSaved.current = true;
+    } catch (error) {
+      console.error('Error saving session:', error);
+    }
+  }
+};
 
 type BreathingPhase = 'inhale' | 'holdInhale' | 'exhale' | 'holdExhale';
 
@@ -16,6 +43,8 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ technique, onB
   const [cycleCount, setCycleCount] = useState(0);
   const [bubbleScale, setBubbleScale] = useState(0.5); // 0.5 to 1.0 scale
   const scaleRef = useRef(0.5);
+  const sessionStartTimeRef = useRef<number | null>(null);
+  const hasSavedSessionRef = useRef(false);
 
   // Animation effect for smooth bubble scaling
   useEffect(() => {
@@ -170,13 +199,69 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ technique, onB
     }
   };
 
+  // Save session when user stops or navigates away
+  const saveSessionData = async (cycles: number, duration: number) => {
+    if (hasSavedSessionRef.current || cycles === 0) {
+      return; // Don't save if already saved or no cycles completed
+    }
+
+    try {
+      const session = {
+        id: `session-${Date.now()}`,
+        date: new Date().toISOString(),
+        techniqueId: technique.id,
+        techniqueName: technique.name,
+        duration,
+        cycles,
+      };
+      await saveSession(session);
+      hasSavedSessionRef.current = true;
+    } catch (error) {
+      console.error('Error saving session:', error);
+    }
+  };
+
   const handleToggle = () => {
+    const wasActive = isActive;
     setIsActive(!isActive);
-    if (!isActive) {
+    
+    if (!wasActive && !isActive) {
+      // Starting session
+      sessionStartTimeRef.current = Date.now();
+      hasSavedSessionRef.current = false;
       setPhase('inhale');
       setTimeRemaining(technique.inhaleSeconds);
       setCycleCount(0);
+    } else if (wasActive && !isActive) {
+      // Stopping session - save if cycles completed
+      if (sessionStartTimeRef.current) {
+        const duration = Math.floor((Date.now() - sessionStartTimeRef.current) / 1000);
+        saveSessionData(cycleCount, duration);
+      }
     }
+  };
+
+  // Save session when navigating away
+  useEffect(() => {
+    return () => {
+      // Component unmounting - save session if active
+      saveSessionOnUnmount(
+        isActive,
+        cycleCount,
+        sessionStartTimeRef.current,
+        technique,
+        hasSavedSessionRef
+      );
+    };
+  }, [isActive, cycleCount, technique]);
+
+  const handleBack = async () => {
+    // Save session before navigating away if there's an active session
+    if (isActive && sessionStartTimeRef.current && cycleCount > 0 && !hasSavedSessionRef.current) {
+      const duration = Math.floor((Date.now() - sessionStartTimeRef.current) / 1000);
+      await saveSessionData(cycleCount, duration);
+    }
+    onBack();
   };
 
   // Animated bubble size based on scale (0.5 to 1.0)
@@ -185,7 +270,7 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ technique, onB
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={onBack} style={styles.backButton}>
+      <TouchableOpacity onPress={handleBack} style={styles.backButton}>
         <Text style={styles.backButtonText}>← Back</Text>
       </TouchableOpacity>
       
