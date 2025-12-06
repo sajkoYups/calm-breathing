@@ -1,20 +1,34 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { BreathingTechnique } from '../types';
 import { TechniqueCard } from '../components/TechniqueCard';
 import { defaultTechniques } from '../data/breathingTechniques';
+import { getCustomTechniques } from '../utils/storage';
 
 interface TechniqueSelectionScreenProps {
   onSelectTechnique?: (technique: BreathingTechnique) => void;
   onViewDetail?: (technique: BreathingTechnique) => void;
+  onAddCustom?: () => void;
   onBack?: () => void;
 }
 
 export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> = ({
   onSelectTechnique,
   onViewDetail,
+  onAddCustom,
   onBack,
 }) => {
+  const [customTechniques, setCustomTechniques] = useState<BreathingTechnique[]>([]);
+
+  useEffect(() => {
+    loadCustomTechniques();
+  }, []);
+
+  const loadCustomTechniques = async () => {
+    const custom = await getCustomTechniques();
+    setCustomTechniques(custom);
+  };
+
   const handleCardPress = (technique: BreathingTechnique) => {
     if (onViewDetail) {
       onViewDetail(technique);
@@ -22,6 +36,8 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
       onSelectTechnique(technique);
     }
   };
+
+  const allTechniques = [...defaultTechniques, ...customTechniques];
 
   const renderItem = ({ item }: { item: BreathingTechnique }) => (
     <TechniqueCard technique={item} onPress={() => handleCardPress(item)} />
@@ -34,15 +50,24 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
       )}
-      <Text style={styles.title}>Choose a Technique</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Choose a Technique</Text>
+        {onAddCustom && (
+          <TouchableOpacity onPress={onAddCustom} style={styles.addButton}>
+            <Text style={styles.addButtonText}>+ Custom</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <FlatList
-        data={defaultTechniques}
+        data={allTechniques}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         numColumns={2}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         columnWrapperStyle={styles.row}
+        onRefresh={loadCustomTechniques}
+        refreshing={false}
       />
     </View>
   );
@@ -63,12 +88,27 @@ const styles = StyleSheet.create({
     color: '#9C27B0',
     fontWeight: '600',
   },
+  header: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: '#7B1FA2',
-    marginBottom: 24,
-    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  addButton: {
+    backgroundColor: '#BA68C8',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   list: {
     paddingHorizontal: 16,

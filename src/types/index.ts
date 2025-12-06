@@ -6,6 +6,7 @@ export interface BreathingTechnique {
   holdInhale?: number;
   holdExhale?: number;
   description?: string;
+  isCustom?: boolean;
 }
 
 export type RootStackParamList = {

@@ -11,7 +11,10 @@ const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2; // 2 columns with padding
 
 // Color gradients for each technique (Spotify-style)
-const getCardColors = (id: string) => {
+const getCardColors = (id: string, isCustom?: boolean) => {
+  if (isCustom) {
+    return ['#FFA726', '#FFB74D', '#FFCC80']; // Orange gradient for custom techniques
+  }
   const colors: { [key: string]: string[] } = {
     'wim-hof': ['#FF6B6B', '#FF8E8E', '#FFB3B3'],
     'box-breathing': ['#4ECDC4', '#6EDDD6', '#8EEDE8'],
@@ -29,7 +32,7 @@ const getCardColors = (id: string) => {
 };
 
 export const TechniqueCard: React.FC<TechniqueCardProps> = ({ technique, onPress }) => {
-  const colors = getCardColors(technique.id);
+  const colors = getCardColors(technique.id, technique.isCustom);
   const pattern = technique.holdInhale || technique.holdExhale
     ? `${technique.inhaleSeconds}-${technique.holdInhale || 0}-${technique.exhaleSeconds}-${technique.holdExhale || 0}`
     : `${technique.inhaleSeconds}-${technique.exhaleSeconds}`;
@@ -37,6 +40,11 @@ export const TechniqueCard: React.FC<TechniqueCardProps> = ({ technique, onPress
   return (
     <TouchableOpacity onPress={onPress} style={styles.card} activeOpacity={0.8}>
       <View style={[styles.cardContent, { backgroundColor: colors[0] }]}>
+        {technique.isCustom && (
+          <View style={styles.customBadge}>
+            <Text style={styles.customBadgeText}>Custom</Text>
+          </View>
+        )}
         <View style={styles.textContainer}>
           <Text style={styles.name} numberOfLines={2}>
             {technique.name}
@@ -99,6 +107,23 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 16,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  customBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  customBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
