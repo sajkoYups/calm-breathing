@@ -1,22 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import { BreathingTechnique } from '../types';
-import { saveCustomTechnique } from '../utils/storage';
+import { saveCustomTechnique, updateCustomTechnique } from '../utils/storage';
 
 interface CustomTechniqueScreenProps {
+  technique?: BreathingTechnique; // If provided, we're editing
   onSave: () => void;
   onBack: () => void;
 }
 
 export const CustomTechniqueScreen: React.FC<CustomTechniqueScreenProps> = ({
+  technique,
   onSave,
   onBack,
 }) => {
+  const isEditing = !!technique;
   const [name, setName] = useState('');
   const [inhaleSeconds, setInhaleSeconds] = useState('');
   const [exhaleSeconds, setExhaleSeconds] = useState('');
   const [holdInhale, setHoldInhale] = useState('');
   const [holdExhale, setHoldExhale] = useState('');
+
+  useEffect(() => {
+    if (technique) {
+      setName(technique.name);
+      setInhaleSeconds(technique.inhaleSeconds.toString());
+      setExhaleSeconds(technique.exhaleSeconds.toString());
+      setHoldInhale(technique.holdInhale?.toString() || '');
+      setHoldExhale(technique.holdExhale?.toString() || '');
+    }
+  }, [technique]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -49,8 +62,8 @@ export const CustomTechniqueScreen: React.FC<CustomTechniqueScreenProps> = ({
       return;
     }
 
-    const technique: BreathingTechnique = {
-      id: `custom-${Date.now()}`,
+    const techniqueData: BreathingTechnique = {
+      id: isEditing && technique ? technique.id : `custom-${Date.now()}`,
       name: name.trim(),
       inhaleSeconds: inhale,
       exhaleSeconds: exhale,
@@ -61,22 +74,34 @@ export const CustomTechniqueScreen: React.FC<CustomTechniqueScreenProps> = ({
     };
 
     try {
-      await saveCustomTechnique(technique);
-      Alert.alert('Success', 'Custom technique saved!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            setName('');
-            setInhaleSeconds('');
-            setExhaleSeconds('');
-            setHoldInhale('');
-            setHoldExhale('');
-            onSave();
+      if (isEditing) {
+        await updateCustomTechnique(techniqueData);
+        Alert.alert('Success', 'Custom technique updated!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              onSave();
+            },
           },
-        },
-      ]);
+        ]);
+      } else {
+        await saveCustomTechnique(techniqueData);
+        Alert.alert('Success', 'Custom technique saved!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setName('');
+              setInhaleSeconds('');
+              setExhaleSeconds('');
+              setHoldInhale('');
+              setHoldExhale('');
+              onSave();
+            },
+          },
+        ]);
+      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to save custom technique');
+      Alert.alert('Error', isEditing ? 'Failed to update custom technique' : 'Failed to save custom technique');
     }
   };
 
@@ -87,7 +112,7 @@ export const CustomTechniqueScreen: React.FC<CustomTechniqueScreenProps> = ({
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Create Custom Technique</Text>
+        <Text style={styles.title}>{isEditing ? 'Edit Technique' : 'Create Custom Technique'}</Text>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
@@ -150,7 +175,7 @@ export const CustomTechniqueScreen: React.FC<CustomTechniqueScreenProps> = ({
           </View>
 
           <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-            <Text style={styles.saveButtonText}>Save Technique</Text>
+            <Text style={styles.saveButtonText}>{isEditing ? 'Update Technique' : 'Save Technique'}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

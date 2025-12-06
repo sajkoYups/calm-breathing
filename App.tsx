@@ -31,12 +31,16 @@ export default function App() {
     setCurrentScreen('TechniqueSelection');
   };
 
-  const navigateToCustomTechnique = () => {
+  const navigateToCustomTechnique = (technique?: BreathingTechnique) => {
+    if (technique) {
+      setSelectedTechnique(technique);
+    }
     setCurrentScreen('CustomTechnique');
   };
 
   const navigateBackFromCustom = () => {
     setCurrentScreen('TechniqueSelection');
+    setSelectedTechnique(null);
   };
 
   const navigateToBreathing = (technique: BreathingTechnique) => {
@@ -51,6 +55,18 @@ export default function App() {
   const handleCustomTechniqueSaved = () => {
     setRefreshKey((prev) => prev + 1); // Force refresh of technique list
     setCurrentScreen('TechniqueSelection');
+    setSelectedTechnique(null);
+  };
+
+  const handleEditTechnique = (technique: BreathingTechnique) => {
+    setSelectedTechnique(technique);
+    setCurrentScreen('CustomTechnique');
+  };
+
+  const handleDeleteTechnique = () => {
+    setRefreshKey((prev) => prev + 1); // Force refresh of technique list
+    setCurrentScreen('TechniqueSelection');
+    setSelectedTechnique(null);
   };
 
   return (
@@ -71,10 +87,13 @@ export default function App() {
           technique={selectedTechnique}
           onBack={navigateBackFromDetail}
           onStart={() => navigateToBreathing(selectedTechnique)}
+          onEdit={selectedTechnique.isCustom ? handleEditTechnique : undefined}
+          onDelete={selectedTechnique.isCustom ? handleDeleteTechnique : undefined}
         />
       )}
       {currentScreen === 'CustomTechnique' && (
         <CustomTechniqueScreen
+          technique={selectedTechnique?.isCustom ? selectedTechnique : undefined}
           onSave={handleCustomTechniqueSaved}
           onBack={navigateBackFromCustom}
         />

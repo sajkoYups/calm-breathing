@@ -14,6 +14,17 @@ export const saveCustomTechnique = async (technique: BreathingTechnique): Promis
   }
 };
 
+export const updateCustomTechnique = async (technique: BreathingTechnique): Promise<void> => {
+  try {
+    const existing = await getCustomTechniques();
+    const updated = existing.map((t) => (t.id === technique.id ? technique : t));
+    await AsyncStorage.setItem(CUSTOM_TECHNIQUES_KEY, JSON.stringify(updated));
+  } catch (error) {
+    console.error('Error updating custom technique:', error);
+    throw error;
+  }
+};
+
 export const getCustomTechniques = async (): Promise<BreathingTechnique[]> => {
   try {
     const data = await AsyncStorage.getItem(CUSTOM_TECHNIQUES_KEY);

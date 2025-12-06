@@ -1,18 +1,49 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { BreathingTechnique } from '../types';
+import { deleteCustomTechnique } from '../utils/storage';
 
 interface TechniqueDetailScreenProps {
   technique: BreathingTechnique;
   onBack: () => void;
   onStart: () => void;
+  onEdit?: (technique: BreathingTechnique) => void;
+  onDelete?: () => void;
 }
 
 export const TechniqueDetailScreen: React.FC<TechniqueDetailScreenProps> = ({
   technique,
   onBack,
   onStart,
+  onEdit,
+  onDelete,
 }) => {
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Technique',
+      `Are you sure you want to delete "${technique.name}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCustomTechnique(technique.id);
+              if (onDelete) {
+                onDelete();
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete technique');
+            }
+          },
+        },
+      ]
+    );
+  };
   const pattern = technique.holdInhale || technique.holdExhale
     ? `${technique.inhaleSeconds}-${technique.holdInhale || 0}-${technique.exhaleSeconds}-${technique.holdExhale || 0}`
     : `${technique.inhaleSeconds}-${technique.exhaleSeconds}`;
@@ -86,6 +117,25 @@ export const TechniqueDetailScreen: React.FC<TechniqueDetailScreenProps> = ({
         <TouchableOpacity onPress={onStart} style={styles.startButton}>
           <Text style={styles.startButtonText}>Start Breathing</Text>
         </TouchableOpacity>
+
+        {technique.isCustom && (
+          <View style={styles.customActions}>
+            {onEdit && (
+              <TouchableOpacity
+                onPress={() => onEdit(technique)}
+                style={styles.editButton}
+              >
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={handleDelete}
+              style={styles.deleteButton}
+            >
+              <Text style={styles.deleteButtonText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -175,6 +225,39 @@ const styles = StyleSheet.create({
   startButtonText: {
     color: '#fff',
     fontSize: 20,
+    fontWeight: '600',
+  },
+  customActions: {
+    flexDirection: 'row',
+    marginTop: 24,
+    justifyContent: 'space-between',
+  },
+  editButton: {
+    flex: 1,
+    backgroundColor: '#FF9800',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: '#F44336',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });
