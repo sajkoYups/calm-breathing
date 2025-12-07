@@ -9,6 +9,7 @@ interface TechniqueSelectionScreenProps {
   onSelectTechnique?: (technique: BreathingTechnique) => void;
   onViewDetail?: (technique: BreathingTechnique) => void;
   onAddCustom?: () => void;
+  onTrackProgress?: () => void;
   onSettings?: () => void;
   onBack?: () => void;
 }
@@ -17,6 +18,7 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
   onSelectTechnique,
   onViewDetail,
   onAddCustom,
+  onTrackProgress,
   onSettings,
   onBack,
 }) => {
@@ -61,11 +63,18 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
             </TouchableOpacity>
           )}
         </View>
-        {onAddCustom && (
-          <TouchableOpacity onPress={onAddCustom} style={styles.addButton}>
-            <Text style={styles.addButtonText}>+ Custom</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.buttonRow}>
+          {onAddCustom && (
+            <TouchableOpacity onPress={onAddCustom} style={styles.addButton}>
+              <Text style={styles.addButtonText}>+ Custom</Text>
+            </TouchableOpacity>
+          )}
+          {onTrackProgress && (
+            <TouchableOpacity onPress={onTrackProgress} style={styles.progressButton}>
+              <Text style={styles.progressButtonText}>Track Progress</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       <FlatList
         data={allTechniques}
@@ -119,14 +128,29 @@ const styles = StyleSheet.create({
   settingsButtonText: {
     fontSize: 24,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
   addButton: {
     backgroundColor: '#BA68C8',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
-    alignSelf: 'flex-start',
+    marginRight: 12,
   },
   addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  progressButton: {
+    backgroundColor: '#9C27B0',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  progressButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

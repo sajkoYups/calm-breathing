@@ -101,7 +101,7 @@ export default function App() {
   };
 
   const navigateBackFromProgress = () => {
-    setCurrentScreen('Settings');
+    setCurrentScreen('TechniqueSelection');
   };
 
   return (
@@ -114,6 +114,7 @@ export default function App() {
           key={refreshKey}
           onViewDetail={navigateToDetail}
           onAddCustom={navigateToCustomTechnique}
+          onTrackProgress={navigateToProgress}
           onSettings={navigateToSettings}
           onBack={navigateBack}
         />
