@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { clearAllData } from '../utils/storage';
+import { clearAllData, getUserSettings, saveUserSettings } from '../utils/storage';
+import { SettingToggle } from '../components/SettingToggle';
+import { HEADPHONE_WARNING } from '../data/safetyContent';
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -13,23 +15,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onNavigateToHistory,
   onNavigateToProgress,
 }) => {
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  useEffect(() => {
+    getUserSettings().then((settings) => {
+      setVibrationEnabled(settings.vibrationEnabled);
+      setSoundEnabled(settings.soundEnabled);
+    });
+  }, []);
+
+  const handleVibrationChange = async (value: boolean) => {
+    setVibrationEnabled(value);
+    await saveUserSettings({ vibrationEnabled: value });
+  };
+
+  const handleSoundChange = async (value: boolean) => {
+    setSoundEnabled(value);
+    await saveUserSettings({ soundEnabled: value });
+  };
+
   const handleClearAllData = () => {
     Alert.alert(
       'Clear All Data',
-      'This will delete all your custom techniques, session history, and progress. This action cannot be undone.',
+      'This will delete your session history, progress, and settings. This action cannot be undone.',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear All',
           style: 'destructive',
           onPress: async () => {
             try {
               await clearAllData();
+              setVibrationEnabled(true);
+              setSoundEnabled(true);
               Alert.alert('Success', 'All data has been cleared.');
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'Failed to clear data.');
             }
           },
@@ -46,7 +67,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       <Text style={styles.title}>Settings</Text>
 
-      {/* Navigation Options */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Session Options</Text>
+        <SettingToggle
+          label="Vibration"
+          value={vibrationEnabled}
+          onValueChange={handleVibrationChange}
+        />
+        <SettingToggle
+          label="Breathing Sound"
+          value={soundEnabled}
+          onValueChange={handleSoundChange}
+        />
+        <Text style={styles.headphoneWarning}>{HEADPHONE_WARNING}</Text>
+      </View>
+
       {onNavigateToHistory && (
         <TouchableOpacity onPress={onNavigateToHistory} style={styles.settingItem}>
           <Text style={styles.settingLabel}>Session History</Text>
@@ -61,20 +96,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </TouchableOpacity>
       )}
 
-      {/* About Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.aboutCard}>
           <Text style={styles.appName}>Calm Breathing</Text>
           <Text style={styles.version}>Version 1.0.0</Text>
           <Text style={styles.description}>
-            A minimal breathing app to help you find peace, reduce stress, and improve your wellbeing
-            through guided breathing exercises.
+            A minimal breathing app to help you find peace, reduce stress, and improve your
+            wellbeing through guided breathing exercises.
           </Text>
         </View>
       </View>
 
-      {/* Clear Data */}
       <View style={styles.section}>
         <TouchableOpacity onPress={handleClearAllData} style={styles.dangerButton}>
           <Text style={styles.dangerButtonText}>Clear All Data</Text>
@@ -109,6 +142,25 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 16,
   },
+  section: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#3949AB',
+    marginBottom: 12,
+  },
+  headphoneWarning: {
+    fontSize: 13,
+    color: '#90A4AE',
+    fontStyle: 'italic',
+    marginTop: 4,
+    lineHeight: 18,
+    paddingHorizontal: 4,
+  },
   settingItem: {
     backgroundColor: '#fff',
     padding: 20,
@@ -132,16 +184,6 @@ const styles = StyleSheet.create({
   settingArrow: {
     fontSize: 20,
     color: '#5C6BC0',
-  },
-  section: {
-    marginTop: 32,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#3949AB',
-    marginBottom: 16,
   },
   aboutCard: {
     backgroundColor: '#fff',
@@ -183,4 +225,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

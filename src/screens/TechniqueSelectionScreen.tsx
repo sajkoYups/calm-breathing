@@ -1,47 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { BreathingTechnique } from '../types';
 import { TechniqueCard } from '../components/TechniqueCard';
 import { defaultTechniques } from '../data/breathingTechniques';
-import { getCustomTechniques } from '../utils/storage';
 
 interface TechniqueSelectionScreenProps {
-  onSelectTechnique?: (technique: BreathingTechnique) => void;
   onViewDetail?: (technique: BreathingTechnique) => void;
-  onAddCustom?: () => void;
   onTrackProgress?: () => void;
   onSettings?: () => void;
   onBack?: () => void;
 }
 
+const horizontalPadding = 16;
+
 export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> = ({
-  onSelectTechnique,
   onViewDetail,
-  onAddCustom,
   onTrackProgress,
   onSettings,
   onBack,
 }) => {
-  const [customTechniques, setCustomTechniques] = useState<BreathingTechnique[]>([]);
-
-  useEffect(() => {
-    loadCustomTechniques();
-  }, []);
-
-  const loadCustomTechniques = async () => {
-    const custom = await getCustomTechniques();
-    setCustomTechniques(custom);
-  };
-
   const handleCardPress = (technique: BreathingTechnique) => {
     if (onViewDetail) {
       onViewDetail(technique);
-    } else if (onSelectTechnique) {
-      onSelectTechnique(technique);
     }
   };
-
-  const allTechniques = [...defaultTechniques, ...customTechniques];
 
   const renderItem = ({ item }: { item: BreathingTechnique }) => (
     <TechniqueCard technique={item} onPress={() => handleCardPress(item)} />
@@ -63,29 +45,20 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
             </TouchableOpacity>
           )}
         </View>
-        <View style={styles.buttonRow}>
-          {onAddCustom && (
-            <TouchableOpacity onPress={onAddCustom} style={styles.addButton}>
-              <Text style={styles.addButtonText}>+ Custom</Text>
-            </TouchableOpacity>
-          )}
-          {onTrackProgress && (
-            <TouchableOpacity onPress={onTrackProgress} style={styles.progressButton}>
-              <Text style={styles.progressButtonText}>Track Progress</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {onTrackProgress && (
+          <TouchableOpacity onPress={onTrackProgress} style={styles.progressButton}>
+            <Text style={styles.progressButtonText}>Track Progress</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <FlatList
-        data={allTechniques}
+        data={defaultTechniques}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         numColumns={2}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
         columnWrapperStyle={styles.row}
-        onRefresh={loadCustomTechniques}
-        refreshing={false}
+        showsVerticalScrollIndicator={false}
       />
     </View>
   );
@@ -94,33 +67,32 @@ export const TechniqueSelectionScreen: React.FC<TechniqueSelectionScreenProps> =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3E5F5',
+    backgroundColor: '#E8EAF6',
   },
   backButton: {
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 10,
     paddingHorizontal: 16,
   },
   backButtonText: {
     fontSize: 18,
-    color: '#9C27B0',
+    color: '#3F51B5',
     fontWeight: '600',
   },
   header: {
     paddingHorizontal: 16,
-    marginBottom: 24,
+    paddingBottom: 16,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
-    color: '#7B1FA2',
-    flex: 1,
+    color: '#283593',
   },
   settingsButton: {
     padding: 8,
@@ -128,36 +100,21 @@ const styles = StyleSheet.create({
   settingsButtonText: {
     fontSize: 24,
   },
-  buttonRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  addButton: {
-    backgroundColor: '#BA68C8',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   progressButton: {
-    backgroundColor: '#9C27B0',
+    backgroundColor: '#7986CB',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
+    alignSelf: 'flex-start',
   },
   progressButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
-  list: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+  listContent: {
+    paddingHorizontal: horizontalPadding - 6,
+    paddingBottom: 40,
   },
   row: {
     justifyContent: 'center',

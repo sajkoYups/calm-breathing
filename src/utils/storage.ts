@@ -1,53 +1,37 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BreathingTechnique, BreathingSession, UserProgress } from '../types';
+import { BreathingSession, UserProgress, UserSettings } from '../types';
 
-const CUSTOM_TECHNIQUES_KEY = '@calm_breathing:custom_techniques';
 const SESSIONS_KEY = '@calm_breathing:sessions';
+const SETTINGS_KEY = '@calm_breathing:settings';
 
-export const saveCustomTechnique = async (technique: BreathingTechnique): Promise<void> => {
+const DEFAULT_SETTINGS: UserSettings = {
+  vibrationEnabled: true,
+  soundEnabled: true,
+  safetyAcknowledged: false,
+};
+
+export const getUserSettings = async (): Promise<UserSettings> => {
   try {
-    const existing = await getCustomTechniques();
-    const updated = [...existing, technique];
-    await AsyncStorage.setItem(CUSTOM_TECHNIQUES_KEY, JSON.stringify(updated));
+    const data = await AsyncStorage.getItem(SETTINGS_KEY);
+    return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
   } catch (error) {
-    console.error('Error saving custom technique:', error);
+    console.error('Error getting user settings:', error);
+    return DEFAULT_SETTINGS;
+  }
+};
+
+export const saveUserSettings = async (settings: Partial<UserSettings>): Promise<UserSettings> => {
+  try {
+    const current = await getUserSettings();
+    const updated = { ...current, ...settings };
+    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (error) {
+    console.error('Error saving user settings:', error);
     throw error;
   }
 };
 
-export const updateCustomTechnique = async (technique: BreathingTechnique): Promise<void> => {
-  try {
-    const existing = await getCustomTechniques();
-    const updated = existing.map((t) => (t.id === technique.id ? technique : t));
-    await AsyncStorage.setItem(CUSTOM_TECHNIQUES_KEY, JSON.stringify(updated));
-  } catch (error) {
-    console.error('Error updating custom technique:', error);
-    throw error;
-  }
-};
-
-export const getCustomTechniques = async (): Promise<BreathingTechnique[]> => {
-  try {
-    const data = await AsyncStorage.getItem(CUSTOM_TECHNIQUES_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('Error getting custom techniques:', error);
-    return [];
-  }
-};
-
-export const deleteCustomTechnique = async (id: string): Promise<void> => {
-  try {
-    const existing = await getCustomTechniques();
-    const updated = existing.filter((t) => t.id !== id);
-    await AsyncStorage.setItem(CUSTOM_TECHNIQUES_KEY, JSON.stringify(updated));
-  } catch (error) {
-    console.error('Error deleting custom technique:', error);
-    throw error;
-  }
-};
-
-// Session storage functions
 export const saveSession = async (session: BreathingSession): Promise<void> => {
   try {
     const existing = await getSessions();
@@ -85,7 +69,6 @@ export const getSessionsByDateRange = async (
   }
 };
 
-// Helper function to check if two dates are on the same day
 const isSameDay = (date1: Date, date2: Date): boolean => {
   return (
     date1.getFullYear() === date2.getFullYear() &&
@@ -94,25 +77,21 @@ const isSameDay = (date1: Date, date2: Date): boolean => {
   );
 };
 
-// Helper function to get start of day
 const getStartOfDay = (date: Date): Date => {
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
   return start;
 };
 
-// Calculate streak from sessions
 export const calculateStreak = (sessions: BreathingSession[]): { current: number; longest: number } => {
   if (sessions.length === 0) {
     return { current: 0, longest: 0 };
   }
 
-  // Sort sessions by date (newest first)
   const sortedSessions = [...sessions].sort((a, b) => {
     return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
 
-  // Get unique days with sessions
   const uniqueDays = new Set<string>();
   sortedSessions.forEach((session) => {
     const date = new Date(session.date);
@@ -127,7 +106,6 @@ export const calculateStreak = (sessions: BreathingSession[]): { current: number
     })
     .sort((a, b) => b.getTime() - a.getTime());
 
-  // Calculate current streak
   let currentStreak = 0;
   const today = getStartOfDay(new Date());
   let expectedDate = today;
@@ -139,7 +117,6 @@ export const calculateStreak = (sessions: BreathingSession[]): { current: number
       expectedDate = new Date(expectedDate);
       expectedDate.setDate(expectedDate.getDate() - 1);
     } else {
-      // Check if it's yesterday (allows for same-day streak)
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       if (isSameDay(dayStart, yesterday) && currentStreak === 0) {
@@ -152,7 +129,6 @@ export const calculateStreak = (sessions: BreathingSession[]): { current: number
     }
   }
 
-  // Calculate longest streak
   let longestStreak = 0;
   let tempStreak = 0;
   let lastDate: Date | null = null;
@@ -180,11 +156,10 @@ export const calculateStreak = (sessions: BreathingSession[]): { current: number
   return { current: currentStreak, longest: longestStreak };
 };
 
-// Get user progress
 export const getUserProgress = async (): Promise<UserProgress> => {
   try {
     const sessions = await getSessions();
-    
+
     if (sessions.length === 0) {
       return {
         totalSessions: 0,
@@ -197,7 +172,7 @@ export const getUserProgress = async (): Promise<UserProgress> => {
 
     const totalTime = sessions.reduce((sum, session) => sum + session.duration, 0);
     const { current, longest } = calculateStreak(sessions);
-    
+
     const sortedSessions = [...sessions].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
@@ -222,13 +197,11 @@ export const getUserProgress = async (): Promise<UserProgress> => {
   }
 };
 
-// Clear all data
 export const clearAllData = async (): Promise<void> => {
   try {
-    await AsyncStorage.multiRemove([CUSTOM_TECHNIQUES_KEY, SESSIONS_KEY]);
+    await AsyncStorage.multiRemove([SESSIONS_KEY, SETTINGS_KEY]);
   } catch (error) {
     console.error('Error clearing all data:', error);
     throw error;
   }
 };
-

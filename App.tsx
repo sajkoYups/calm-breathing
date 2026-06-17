@@ -1,20 +1,21 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { TechniqueSelectionScreen } from './src/screens/TechniqueSelectionScreen';
 import { TechniqueDetailScreen } from './src/screens/TechniqueDetailScreen';
-import { CustomTechniqueScreen } from './src/screens/CustomTechniqueScreen';
 import { BreathingScreen } from './src/screens/BreathingScreen';
+import { PowerBreathingScreen } from './src/screens/PowerBreathingScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
-import { BreathingTechnique } from './src/types';
+import { SafetyNoticeModal } from './src/components/SafetyNoticeModal';
+import { BreathingTechnique, SessionConfig } from './src/types';
+import { getUserSettings, saveUserSettings } from './src/utils/storage';
 
 type Screen =
   | 'Welcome'
   | 'TechniqueSelection'
   | 'TechniqueDetail'
-  | 'CustomTechnique'
   | 'Breathing'
   | 'History'
   | 'Progress'
@@ -23,9 +24,32 @@ type Screen =
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('Welcome');
   const [selectedTechnique, setSelectedTechnique] = useState<BreathingTechnique | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [sessionConfig, setSessionConfig] = useState<SessionConfig | null>(null);
+  const [showFullSafety, setShowFullSafety] = useState(false);
+  const [showShortSafety, setShowShortSafety] = useState(false);
+  const [pendingSessionConfig, setPendingSessionConfig] = useState<SessionConfig | null>(null);
+
+  useEffect(() => {
+    getUserSettings().then((settings) => {
+      if (!settings.safetyAcknowledged) {
+        setShowFullSafety(true);
+      }
+    });
+  }, []);
 
   const navigateToTechniqueSelection = () => {
+    getUserSettings().then((settings) => {
+      if (!settings.safetyAcknowledged) {
+        setShowFullSafety(true);
+      } else {
+        setCurrentScreen('TechniqueSelection');
+      }
+    });
+  };
+
+  const handleFullSafetyContinue = async () => {
+    await saveUserSettings({ safetyAcknowledged: true });
+    setShowFullSafety(false);
     setCurrentScreen('TechniqueSelection');
   };
 
@@ -42,42 +66,23 @@ export default function App() {
     setCurrentScreen('TechniqueSelection');
   };
 
-  const navigateToCustomTechnique = (technique?: BreathingTechnique) => {
-    if (technique) {
-      setSelectedTechnique(technique);
+  const handleStartSession = (config: SessionConfig) => {
+    setPendingSessionConfig(config);
+    setShowShortSafety(true);
+  };
+
+  const handleShortSafetyContinue = () => {
+    if (pendingSessionConfig) {
+      setSessionConfig(pendingSessionConfig);
+      setPendingSessionConfig(null);
+      setShowShortSafety(false);
+      setCurrentScreen('Breathing');
     }
-    setCurrentScreen('CustomTechnique');
-  };
-
-  const navigateBackFromCustom = () => {
-    setCurrentScreen('TechniqueSelection');
-    setSelectedTechnique(null);
-  };
-
-  const navigateToBreathing = (technique: BreathingTechnique) => {
-    setSelectedTechnique(technique);
-    setCurrentScreen('Breathing');
   };
 
   const navigateBackFromBreathing = () => {
+    setSessionConfig(null);
     setCurrentScreen('TechniqueSelection');
-  };
-
-  const handleCustomTechniqueSaved = () => {
-    setRefreshKey((prev) => prev + 1); // Force refresh of technique list
-    setCurrentScreen('TechniqueSelection');
-    setSelectedTechnique(null);
-  };
-
-  const handleEditTechnique = (technique: BreathingTechnique) => {
-    setSelectedTechnique(technique);
-    setCurrentScreen('CustomTechnique');
-  };
-
-  const handleDeleteTechnique = () => {
-    setRefreshKey((prev) => prev + 1); // Force refresh of technique list
-    setCurrentScreen('TechniqueSelection');
-    setSelectedTechnique(null);
   };
 
   const navigateToSettings = () => {
@@ -104,6 +109,8 @@ export default function App() {
     setCurrentScreen('TechniqueSelection');
   };
 
+  const isPowerSession = sessionConfig?.technique.kind === 'power';
+
   return (
     <>
       {currentScreen === 'Welcome' && (
@@ -111,9 +118,7 @@ export default function App() {
       )}
       {currentScreen === 'TechniqueSelection' && (
         <TechniqueSelectionScreen
-          key={refreshKey}
           onViewDetail={navigateToDetail}
-          onAddCustom={navigateToCustomTechnique}
           onTrackProgress={navigateToProgress}
           onSettings={navigateToSettings}
           onBack={navigateBack}
@@ -123,23 +128,14 @@ export default function App() {
         <TechniqueDetailScreen
           technique={selectedTechnique}
           onBack={navigateBackFromDetail}
-          onStart={() => navigateToBreathing(selectedTechnique)}
-          onEdit={selectedTechnique.isCustom ? handleEditTechnique : undefined}
-          onDelete={selectedTechnique.isCustom ? handleDeleteTechnique : undefined}
+          onStart={handleStartSession}
         />
       )}
-      {currentScreen === 'CustomTechnique' && (
-        <CustomTechniqueScreen
-          technique={selectedTechnique?.isCustom ? selectedTechnique : undefined}
-          onSave={handleCustomTechniqueSaved}
-          onBack={navigateBackFromCustom}
-        />
+      {currentScreen === 'Breathing' && sessionConfig && !isPowerSession && (
+        <BreathingScreen config={sessionConfig} onBack={navigateBackFromBreathing} />
       )}
-      {currentScreen === 'Breathing' && selectedTechnique && (
-        <BreathingScreen
-          technique={selectedTechnique}
-          onBack={navigateBackFromBreathing}
-        />
+      {currentScreen === 'Breathing' && sessionConfig && isPowerSession && (
+        <PowerBreathingScreen config={sessionConfig} onBack={navigateBackFromBreathing} />
       )}
       {currentScreen === 'History' && (
         <HistoryScreen onBack={navigateBackFromHistory} />
@@ -154,6 +150,18 @@ export default function App() {
           onNavigateToProgress={navigateToProgress}
         />
       )}
+
+      <SafetyNoticeModal
+        visible={showFullSafety}
+        mode="full"
+        onContinue={handleFullSafetyContinue}
+      />
+      <SafetyNoticeModal
+        visible={showShortSafety}
+        mode="short"
+        onContinue={handleShortSafetyContinue}
+      />
+
       <StatusBar style="auto" />
     </>
   );
