@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { Alert, BackHandler, View } from 'react-native';
 import { SessionConfig } from '../types';
-import { saveSession } from '../utils/storage';
+import { saveSession, getUserProgress } from '../utils/storage';
 import {
   triggerPhaseChange,
   triggerCountdown,
@@ -11,17 +11,30 @@ import {
   playPhaseBell,
   loadSounds,
   unloadSounds,
+  triggerSessionComplete,
 } from '../utils/feedback';
+import { Button, BreathingOrb, Header, ModalSheet, Screen, Text } from '../components/ui';
+import { getTechniqueAccent } from '../theme/colors';
+import { useTheme } from '../theme';
+import { spacing } from '../theme/spacing';
 
 interface BreathingScreenProps {
   config: SessionConfig;
   onBack: () => void;
+  onBreatheAgain?: () => void;
 }
 
 type BreathingPhase = 'inhale' | 'holdInhale' | 'exhale' | 'holdExhale';
 
-export const BreathingScreen: React.FC<BreathingScreenProps> = ({ config, onBack }) => {
+export const BreathingScreen: React.FC<BreathingScreenProps> = ({
+  config,
+  onBack,
+  onBreatheAgain,
+}) => {
   const { technique, limit, vibrationEnabled, soundEnabled } = config;
+  const { isDark } = useTheme();
+  const accent = getTechniqueAccent(technique.id);
+  const isSleepTechnique = technique.id === 'sleep-wind-down';
   const isMinutesMode = technique.sessionLimitMode === 'minutes';
 
   const [isActive, setIsActive] = useState(false);
@@ -32,6 +45,7 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ config, onBack
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [finalStats, setFinalStats] = useState({ duration: 0, cycles: 0 });
+  const [streak, setStreak] = useState(0);
 
   const sessionStartTimeRef = useRef<number | null>(null);
   const hasSavedSessionRef = useRef(false);
@@ -73,7 +87,10 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ config, onBack
       setIsActive(false);
       await stopBreathSound();
       setFinalStats({ duration, cycles });
+      const progress = await getUserProgress();
+      setStreak(progress.currentStreak);
       setIsComplete(true);
+      triggerSessionComplete();
       if (cycles > 0) {
         await saveSession({
           id: `session-${Date.now()}`,
@@ -199,14 +216,17 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ config, onBack
       return;
     }
 
+    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
     const calculateScale = (p: BreathingPhase, progress: number): number => {
+      const eased = easeInOut(progress);
       switch (p) {
         case 'inhale':
-          return 0.5 + 0.5 * progress;
+          return 0.5 + 0.5 * eased;
         case 'holdInhale':
           return 1.0;
         case 'exhale':
-          return 1.0 - 0.5 * progress;
+          return 1.0 - 0.5 * eased;
         case 'holdExhale':
           return 0.5;
       }
@@ -271,7 +291,7 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ config, onBack
     }
   };
 
-  const handleBack = async () => {
+  const exitSession = async () => {
     if (isActive && sessionStartTimeRef.current && cycleCount > 0 && !hasSavedSessionRef.current) {
       const duration = Math.floor((Date.now() - sessionStartTimeRef.current) / 1000);
       await saveSessionData(cycleCount, duration);
@@ -280,19 +300,33 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ config, onBack
     onBack();
   };
 
-  const handleCompleteDismiss = () => {
-    setIsComplete(false);
-    onBack();
+  const handleBack = () => {
+    if (isActive) {
+      Alert.alert('Leave session?', 'Your progress will be saved.', [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Leave', style: 'destructive', onPress: exitSession },
+      ]);
+    } else {
+      exitSession();
+    }
   };
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isActive, cycleCount]);
 
   const getPhaseText = () => {
     switch (phase) {
       case 'inhale':
-        return 'Breathe In';
+        return 'Breathe in';
       case 'holdInhale':
         return 'Hold';
       case 'exhale':
-        return 'Breathe Out';
+        return 'Breathe out';
       case 'holdExhale':
         return 'Hold';
       default:
@@ -306,173 +340,84 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ config, onBack
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const baseSize = 200;
-  const bubbleSize = Math.max(50, baseSize * bubbleScale);
+  const bubbleSize = Math.max(50, 200 * bubbleScale);
+  const dimSession = isDark || isSleepTechnique;
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
+    <Screen padded={false} ambientTint={accent.ambient}>
+      <Header onBack={handleBack} title={technique.name} />
 
-      <Text style={styles.techniqueName}>
-        {technique.emoji} {technique.name}
-      </Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.xxl }}>
+        <BreathingOrb size={bubbleSize} techniqueId={technique.id} />
 
-      <View style={styles.content}>
-        <View style={[styles.bubble, { width: bubbleSize, height: bubbleSize }]} />
-
-        <View style={styles.infoContainer}>
-          <Text style={styles.phaseText}>{getPhaseText()}</Text>
-          {isActive && <Text style={styles.timerText}>{timeRemaining}</Text>}
-          <Text style={styles.cycleText}>Cycles: {cycleCount}</Text>
-          {isMinutesMode && isActive && (
-            <Text style={styles.elapsedText}>
+        <View style={{ alignItems: 'center', marginBottom: spacing.xxxl }}>
+          <Text variant="display" align="center" style={{ marginBottom: spacing.md, opacity: dimSession ? 0.85 : 1 }}>
+            {getPhaseText()}
+          </Text>
+          {isActive ? (
+            <Text variant="stat" color="accent" style={{ marginBottom: spacing.sm }}>
+              {timeRemaining}
+            </Text>
+          ) : null}
+          {isMinutesMode && isActive ? (
+            <Text variant="caption" color="secondary">
               {formatTime(elapsedSeconds)} / {limit} min
             </Text>
-          )}
-          {!isMinutesMode && isActive && (
-            <Text style={styles.elapsedText}>
+          ) : null}
+          {!isMinutesMode && isActive ? (
+            <Text variant="caption" color="secondary">
               Round {Math.min(cycleCount + 1, limit)} of {limit}
             </Text>
-          )}
+          ) : null}
         </View>
 
-        {!isComplete && (
-          <TouchableOpacity onPress={handleToggle} style={styles.controlButton}>
-            <Text style={styles.controlButtonText}>{isActive ? 'Pause' : 'Start'}</Text>
-          </TouchableOpacity>
-        )}
+        {!isComplete ? (
+          <Button
+            label={isActive ? 'Pause' : 'Start'}
+            onPress={handleToggle}
+            style={{ minWidth: 200 }}
+            accessibilityLabel={isActive ? 'Pause session' : 'Start session'}
+          />
+        ) : null}
       </View>
 
-      <Modal visible={isComplete} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.completeCard}>
-            <Text style={styles.completeTitle}>Session Complete</Text>
-            <Text style={styles.completeStat}>Duration: {formatTime(finalStats.duration)}</Text>
-            <Text style={styles.completeStat}>Cycles: {finalStats.cycles}</Text>
-            <TouchableOpacity onPress={handleCompleteDismiss} style={styles.completeButton}>
-              <Text style={styles.completeButtonText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      <ModalSheet
+        visible={isComplete}
+        title="Well done"
+        primaryAction={{
+          label: 'Done',
+          onPress: () => {
+            setIsComplete(false);
+            onBack();
+          },
+        }}
+        secondaryAction={
+          onBreatheAgain
+            ? {
+                label: 'Breathe again',
+                onPress: () => {
+                  setIsComplete(false);
+                  onBreatheAgain();
+                },
+              }
+            : undefined
+        }
+      >
+        <Text variant="body" color="secondary" align="center" style={{ marginBottom: spacing.lg }}>
+          You breathed for {formatTime(finalStats.duration)}
+        </Text>
+        <Text variant="stat" color="accent" align="center">
+          {finalStats.cycles}
+        </Text>
+        <Text variant="caption" color="secondary" align="center" style={{ marginBottom: spacing.lg }}>
+          cycles completed
+        </Text>
+        {streak > 0 ? (
+          <Text variant="body" color="accent" align="center">
+            {streak} day streak — keep it going!
+          </Text>
+        ) : null}
+      </ModalSheet>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#E8EAF6',
-  },
-  backButton: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-  },
-  backButtonText: {
-    fontSize: 18,
-    color: '#3F51B5',
-    fontWeight: '600',
-  },
-  techniqueName: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#283593',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  bubble: {
-    backgroundColor: '#88D8C0',
-    borderRadius: 100,
-    opacity: 0.8,
-    marginBottom: 40,
-  },
-  infoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  phaseText: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#3949AB',
-    marginBottom: 16,
-  },
-  timerText: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#283593',
-    marginBottom: 8,
-  },
-  cycleText: {
-    fontSize: 18,
-    color: '#5C6BC0',
-    marginTop: 8,
-    fontWeight: '600',
-  },
-  elapsedText: {
-    fontSize: 16,
-    color: '#7986CB',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  controlButton: {
-    backgroundColor: '#5C6BC0',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    width: '100%',
-    maxWidth: 200,
-  },
-  controlButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  completeCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 320,
-  },
-  completeTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#283593',
-    marginBottom: 16,
-  },
-  completeStat: {
-    fontSize: 18,
-    color: '#546E7A',
-    marginBottom: 8,
-  },
-  completeButton: {
-    backgroundColor: '#5C6BC0',
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  completeButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});

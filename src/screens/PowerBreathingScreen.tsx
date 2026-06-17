@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { Alert, BackHandler, View } from 'react-native';
 import { SessionConfig } from '../types';
-import { saveSession } from '../utils/storage';
+import { saveSession, getUserProgress } from '../utils/storage';
 import {
   triggerPhaseChange,
   triggerCountdown,
@@ -11,11 +11,17 @@ import {
   playPhaseBell,
   loadSounds,
   unloadSounds,
+  triggerSessionComplete,
 } from '../utils/feedback';
+import { Button, BreathingOrb, Header, ModalSheet, Screen, Text } from '../components/ui';
+import { getTechniqueAccent } from '../theme/colors';
+import { useTheme } from '../theme';
+import { continuousCurve, radius, spacing } from '../theme/spacing';
 
 interface PowerBreathingScreenProps {
   config: SessionConfig;
   onBack: () => void;
+  onBreatheAgain?: () => void;
 }
 
 type PowerPhase = 'deepBreaths' | 'exhaleHold' | 'recoveryInhale' | 'recoveryHold';
@@ -24,8 +30,14 @@ const BREATH_CYCLE_SECONDS = 2;
 const RECOVERY_INHALE_SECONDS = 4;
 const EXHALE_HOLD_MAX_SECONDS = 90;
 
-export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({ config, onBack }) => {
+export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({
+  config,
+  onBack,
+  onBreatheAgain,
+}) => {
   const { technique, limit: totalRounds, vibrationEnabled, soundEnabled } = config;
+  const { colors } = useTheme();
+  const accent = getTechniqueAccent(technique.id);
   const breathsPerRound = config.breathsPerRound ?? technique.powerConfig!.defaultBreaths;
   const recoveryHoldSeconds = technique.powerConfig!.recoveryHoldSeconds;
 
@@ -39,6 +51,7 @@ export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({ conf
   const [exhaleHoldElapsed, setExhaleHoldElapsed] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [finalStats, setFinalStats] = useState({ duration: 0, rounds: 0 });
+  const [streak, setStreak] = useState(0);
 
   const sessionStartTimeRef = useRef<number | null>(null);
   const hasSavedSessionRef = useRef(false);
@@ -64,7 +77,10 @@ export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({ conf
       setIsActive(false);
       await stopBreathSound();
       setFinalStats({ duration, rounds });
+      const progress = await getUserProgress();
+      setStreak(progress.currentStreak);
       setIsComplete(true);
+      triggerSessionComplete();
       if (rounds > 0) {
         await saveSession({
           id: `session-${Date.now()}`,
@@ -205,11 +221,13 @@ export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({ conf
       return;
     }
 
+    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
     const animate = (timestamp: number) => {
       if (phase === 'deepBreaths') {
         const halfDuration = (BREATH_CYCLE_SECONDS / 2) * 1000;
         const elapsed = timestamp - phaseStartTimeRef.current;
-        const progress = Math.max(0, Math.min(1, elapsed / halfDuration));
+        const progress = easeInOut(Math.max(0, Math.min(1, elapsed / halfDuration)));
         if (breathSubPhase === 'inhale') {
           setBubbleScale(0.5 + 0.5 * progress);
         } else {
@@ -218,7 +236,7 @@ export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({ conf
       } else if (phase === 'recoveryInhale') {
         const duration = RECOVERY_INHALE_SECONDS * 1000;
         const elapsed = timestamp - phaseStartTimeRef.current;
-        const progress = Math.max(0, Math.min(1, elapsed / duration));
+        const progress = easeInOut(Math.max(0, Math.min(1, elapsed / duration)));
         setBubbleScale(0.5 + 0.5 * progress);
       } else if (phase === 'recoveryHold') {
         setBubbleScale(1.0);
@@ -280,19 +298,38 @@ export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({ conf
     }
   };
 
-  const handleBack = async () => {
+  const exitSession = async () => {
     await stopBreathSound();
     onBack();
   };
 
+  const handleBack = () => {
+    if (isActive) {
+      Alert.alert('Leave session?', 'Your progress may not be saved.', [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Leave', style: 'destructive', onPress: exitSession },
+      ]);
+    } else {
+      exitSession();
+    }
+  };
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isActive]);
+
   const getPhaseText = (): string => {
     switch (phase) {
       case 'deepBreaths':
-        return breathSubPhase === 'inhale' ? 'Deep Breath In' : 'Deep Breath Out';
+        return breathSubPhase === 'inhale' ? 'Deep breath in' : 'Deep breath out';
       case 'exhaleHold':
-        return 'Exhale Fully & Hold';
+        return 'Exhale fully & hold';
       case 'recoveryInhale':
-        return 'Deep Inhale';
+        return 'Deep inhale';
       case 'recoveryHold':
         return 'Hold';
       default:
@@ -309,243 +346,102 @@ export const PowerBreathingScreen: React.FC<PowerBreathingScreenProps> = ({ conf
   const bubbleSize = Math.max(50, 200 * bubbleScale);
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
+    <Screen padded={false} ambientTint={accent.ambient}>
+      <Header onBack={handleBack} title={technique.name} subtitle={`Round ${currentRound} of ${totalRounds}`} />
 
-      <View style={styles.safetyBanner}>
-        <Text style={styles.safetyBannerText}>Stay seated. Stop if dizzy.</Text>
+      <View
+        style={{
+          backgroundColor: colors.warningBg,
+          paddingVertical: spacing.sm,
+          paddingHorizontal: spacing.lg,
+          marginHorizontal: spacing.lg,
+          borderRadius: radius.sm,
+          marginBottom: spacing.md,
+          ...continuousCurve,
+        }}
+      >
+        <Text variant="caption" color="warning" align="center">
+          Stay seated. Stop if dizzy.
+        </Text>
       </View>
 
-      <Text style={styles.techniqueName}>
-        {technique.emoji} {technique.name}
-      </Text>
-      <Text style={styles.roundText}>
-        Round {currentRound} of {totalRounds}
-      </Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.xxl }}>
+        <BreathingOrb size={bubbleSize} techniqueId={technique.id} />
 
-      <View style={styles.content}>
-        <View style={[styles.bubble, { width: bubbleSize, height: bubbleSize }]} />
-
-        <View style={styles.infoContainer}>
-          <Text style={styles.phaseText}>{getPhaseText()}</Text>
-          {phase === 'deepBreaths' && isActive && (
-            <Text style={styles.breathCountText}>
+        <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
+          <Text variant="title" align="center" style={{ marginBottom: spacing.md }}>
+            {getPhaseText()}
+          </Text>
+          {phase === 'deepBreaths' && isActive ? (
+            <Text variant="body" color="secondary" style={{ marginBottom: spacing.sm }}>
               Breath {breathCount + 1} of {breathsPerRound}
             </Text>
-          )}
-          {phase !== 'exhaleHold' && isActive && (
-            <Text style={styles.timerText}>{timeRemaining}</Text>
-          )}
-          {phase === 'exhaleHold' && isActive && (
+          ) : null}
+          {phase !== 'exhaleHold' && isActive ? (
+            <Text variant="stat" color="accent">
+              {timeRemaining}
+            </Text>
+          ) : null}
+          {phase === 'exhaleHold' && isActive ? (
             <>
-              <Text style={styles.holdHint}>Tap when ready to breathe in</Text>
-              <Text style={styles.holdTimer}>{exhaleHoldElapsed}s</Text>
+              <Text variant="caption" color="secondary" align="center" style={{ marginBottom: spacing.sm }}>
+                Tap when ready to breathe in
+              </Text>
+              <Text variant="stat" color="secondary">
+                {exhaleHoldElapsed}s
+              </Text>
             </>
-          )}
+          ) : null}
         </View>
 
-        {phase === 'exhaleHold' && isActive && (
-          <TouchableOpacity onPress={handleExhaleHoldReady} style={styles.readyButton}>
-            <Text style={styles.readyButtonText}>I'm Ready</Text>
-          </TouchableOpacity>
-        )}
+        {phase === 'exhaleHold' && isActive ? (
+          <Button label="I'm ready" onPress={handleExhaleHoldReady} style={{ marginBottom: spacing.md }} />
+        ) : null}
 
-        {!isComplete && phase !== 'exhaleHold' && (
-          <TouchableOpacity onPress={handleToggle} style={styles.controlButton}>
-            <Text style={styles.controlButtonText}>{isActive ? 'Pause' : 'Start'}</Text>
-          </TouchableOpacity>
-        )}
+        {!isComplete && phase !== 'exhaleHold' ? (
+          <Button
+            label={isActive ? 'Pause' : 'Start'}
+            onPress={handleToggle}
+            style={{ minWidth: 200 }}
+          />
+        ) : null}
 
-        {phase === 'exhaleHold' && isActive && (
-          <TouchableOpacity onPress={handleToggle} style={styles.pauseButton}>
-            <Text style={styles.pauseButtonText}>Pause</Text>
-          </TouchableOpacity>
-        )}
+        {phase === 'exhaleHold' && isActive ? (
+          <Button label="Pause" onPress={handleToggle} variant="ghost" style={{ marginTop: spacing.md }} />
+        ) : null}
       </View>
 
-      <Modal visible={isComplete} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.completeCard}>
-            <Text style={styles.completeTitle}>Session Complete</Text>
-            <Text style={styles.completeStat}>Duration: {formatTime(finalStats.duration)}</Text>
-            <Text style={styles.completeStat}>Rounds: {finalStats.rounds}</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setIsComplete(false);
-                onBack();
-              }}
-              style={styles.completeButton}
-            >
-              <Text style={styles.completeButtonText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      <ModalSheet
+        visible={isComplete}
+        title="Well done"
+        primaryAction={{
+          label: 'Done',
+          onPress: () => {
+            setIsComplete(false);
+            onBack();
+          },
+        }}
+        secondaryAction={
+          onBreatheAgain
+            ? {
+                label: 'Breathe again',
+                onPress: () => {
+                  setIsComplete(false);
+                  onBreatheAgain();
+                },
+              }
+            : undefined
+        }
+      >
+        <Text variant="body" color="secondary" align="center" style={{ marginBottom: spacing.lg }}>
+          You completed {finalStats.rounds} rounds in {formatTime(finalStats.duration)}
+        </Text>
+        {streak > 0 ? (
+          <Text variant="body" color="accent" align="center">
+            {streak} day streak — keep it going!
+          </Text>
+        ) : null}
+      </ModalSheet>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#E8EAF6',
-  },
-  backButton: {
-    paddingTop: 60,
-    paddingBottom: 8,
-    paddingHorizontal: 16,
-  },
-  backButtonText: {
-    fontSize: 18,
-    color: '#3F51B5',
-    fontWeight: '600',
-  },
-  safetyBanner: {
-    backgroundColor: '#FFF3E0',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  safetyBannerText: {
-    fontSize: 14,
-    color: '#E65100',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  techniqueName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#283593',
-    textAlign: 'center',
-  },
-  roundText: {
-    fontSize: 16,
-    color: '#5C6BC0',
-    textAlign: 'center',
-    marginBottom: 16,
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  bubble: {
-    backgroundColor: '#FF8A65',
-    borderRadius: 100,
-    opacity: 0.85,
-    marginBottom: 32,
-  },
-  infoContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  phaseText: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: '#3949AB',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  breathCountText: {
-    fontSize: 20,
-    color: '#5C6BC0',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  timerText: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#283593',
-  },
-  holdHint: {
-    fontSize: 16,
-    color: '#7986CB',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  holdTimer: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#546E7A',
-  },
-  readyButton: {
-    backgroundColor: '#FF7043',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 30,
-    marginBottom: 16,
-  },
-  readyButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  controlButton: {
-    backgroundColor: '#5C6BC0',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    width: '100%',
-    maxWidth: 200,
-  },
-  controlButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  pauseButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    marginTop: 8,
-  },
-  pauseButtonText: {
-    color: '#7986CB',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  completeCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 320,
-  },
-  completeTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#283593',
-    marginBottom: 16,
-  },
-  completeStat: {
-    fontSize: 18,
-    color: '#546E7A',
-    marginBottom: 8,
-  },
-  completeButton: {
-    backgroundColor: '#5C6BC0',
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  completeButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});

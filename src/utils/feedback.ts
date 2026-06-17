@@ -97,6 +97,24 @@ export const stopBreathSound = async (): Promise<void> => {
   }
 };
 
+export const triggerButtonPress = async (): Promise<void> => {
+  if (Platform.OS === 'web') return;
+  try {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch {
+    // Haptics unavailable
+  }
+};
+
+export const triggerSessionComplete = async (): Promise<void> => {
+  if (Platform.OS === 'web') return;
+  try {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } catch {
+    // Haptics unavailable
+  }
+};
+
 export const playPhaseBell = async (enabled: boolean): Promise<void> => {
   if (!enabled || !bellSound) {
     if (enabled) await loadSounds();

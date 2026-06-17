@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   vibrationEnabled: true,
   soundEnabled: true,
   safetyAcknowledged: false,
+  hasSeenWelcome: false,
 };
 
 export const getUserSettings = async (): Promise<UserSettings> => {

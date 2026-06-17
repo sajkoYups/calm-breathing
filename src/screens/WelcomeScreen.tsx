@@ -1,71 +1,83 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View } from 'react-native';
+import { Button, Header, Screen, Text } from '../components/ui';
+import { useReduceMotion } from '../hooks/use-reduce-motion';
+import { useTheme } from '../theme';
+import { spacing } from '../theme/spacing';
+import { BreathingOrb } from '../components/ui/BreathingOrb';
 
 interface WelcomeScreenProps {
-  onNavigate: () => void;
+  mode?: 'onboarding' | 'about';
+  onNavigate?: () => void;
+  onBack?: () => void;
 }
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigate }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
+  mode = 'onboarding',
+  onNavigate,
+  onBack,
+}) => {
+  const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const scaleRef = useRef(0.6);
+  const [, setTick] = React.useState(0);
+  const frameRef = useRef<number | null>(null);
+  const isAbout = mode === 'about';
+
+  useEffect(() => {
+    if (reduceMotion) return;
+
+    const start = performance.now();
+    const animate = (now: number) => {
+      const t = (now - start) / 1000;
+      const breath = (Math.sin(t * Math.PI) + 1) / 2;
+      scaleRef.current = 0.55 + breath * 0.35;
+      setTick((n) => n + 1);
+      frameRef.current = requestAnimationFrame(animate);
+    };
+    frameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [reduceMotion]);
+
+  const orbSize = reduceMotion ? 100 : 80 + scaleRef.current * 60;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Calm Breathing</Text>
-      <Text style={styles.subtitle}>
-        Find your peace through guided breathing exercises
-      </Text>
-      <Text style={styles.description}>
-        Discover techniques to calm your mind, reduce stress, and improve your immunity.
-      </Text>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={onNavigate}
+    <Screen padded={false}>
+      {isAbout ? <Header onBack={onBack} title="About" /> : null}
+
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: spacing.xxl,
+        }}
       >
-        <Text style={styles.buttonText}>Get Started</Text>
-      </TouchableOpacity>
-    </View>
+        <BreathingOrb size={orbSize} bubbleColor={colors.cta} />
+
+        <Text variant="display" align="center" style={{ marginBottom: spacing.md }}>
+          Calm Breathing
+        </Text>
+        <Text variant="body" color="secondary" align="center" style={{ marginBottom: spacing.xxxl }}>
+          Find your peace through guided breathing exercises. Discover techniques to calm your mind,
+          reduce stress, and improve your wellbeing.
+        </Text>
+      </View>
+
+      <View style={{ paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxxl }}>
+        {isAbout ? (
+          <Button label="Done" onPress={onBack!} fullWidth accessibilityLabel="Close about screen" />
+        ) : (
+          <Button
+            label="Get Started"
+            onPress={onNavigate!}
+            fullWidth
+            accessibilityLabel="Get started with Calm Breathing"
+          />
+        )}
+      </View>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#E0F2F1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  title: {
-    fontSize: 42,
-    fontWeight: '700',
-    color: '#00695C',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 20,
-    color: '#00897B',
-    marginBottom: 24,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  description: {
-    fontSize: 16,
-    color: '#4DB6AC',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 48,
-  },
-  button: {
-    backgroundColor: '#26A69A',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    width: '100%',
-    maxWidth: 280,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});

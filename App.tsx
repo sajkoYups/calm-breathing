@@ -1,5 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState, useEffect } from 'react';
+import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_600SemiBold } from '@expo-google-fonts/plus-jakarta-sans';
+import * as SplashScreen from 'expo-splash-screen';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { BackHandler, useColorScheme, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { TechniqueSelectionScreen } from './src/screens/TechniqueSelectionScreen';
 import { TechniqueDetailScreen } from './src/screens/TechniqueDetailScreen';
@@ -9,61 +13,94 @@ import { HistoryScreen } from './src/screens/HistoryScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SafetyNoticeModal } from './src/components/SafetyNoticeModal';
+import { MainTabBar, MainTab } from './src/components/ui';
 import { BreathingTechnique, SessionConfig } from './src/types';
 import { getUserSettings, saveUserSettings } from './src/utils/storage';
 
-type Screen =
-  | 'Welcome'
-  | 'TechniqueSelection'
-  | 'TechniqueDetail'
-  | 'Breathing'
-  | 'History'
-  | 'Progress'
-  | 'Settings';
+SplashScreen.preventAutoHideAsync();
+
+type OverlayScreen = 'welcome' | 'detail' | 'breathing' | 'history';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('Welcome');
+  const colorScheme = useColorScheme();
+  const [fontsLoaded] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_600SemiBold,
+  });
+
+  const [activeTab, setActiveTab] = useState<MainTab>('breathe');
+  const [overlayStack, setOverlayStack] = useState<OverlayScreen[]>([]);
+  const [welcomeMode, setWelcomeMode] = useState<'onboarding' | 'about'>('onboarding');
   const [selectedTechnique, setSelectedTechnique] = useState<BreathingTechnique | null>(null);
   const [sessionConfig, setSessionConfig] = useState<SessionConfig | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
   const [showFullSafety, setShowFullSafety] = useState(false);
   const [showShortSafety, setShowShortSafety] = useState(false);
   const [pendingSessionConfig, setPendingSessionConfig] = useState<SessionConfig | null>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
-  useEffect(() => {
-    getUserSettings().then((settings) => {
-      if (!settings.safetyAcknowledged) {
-        setShowFullSafety(true);
-      }
-    });
+  const overlayStackRef = useRef(overlayStack);
+  overlayStackRef.current = overlayStack;
+
+  const showTabBar = overlayStack.length === 0;
+  const currentOverlay = overlayStack[overlayStack.length - 1];
+
+  const pushOverlay = useCallback((screen: OverlayScreen) => {
+    setOverlayStack((stack) => [...stack, screen]);
   }, []);
 
-  const navigateToTechniqueSelection = () => {
+  const popOverlay = useCallback(() => {
+    const stack = overlayStackRef.current;
+    if (stack.length === 0) return;
+
+    const leaving = stack[stack.length - 1];
+    if (leaving === 'breathing') {
+      setSessionConfig(null);
+    }
+
+    setOverlayStack(stack.length <= 1 ? [] : stack.slice(0, -1));
+  }, []);
+
+  const clearOverlays = useCallback(() => {
+    setOverlayStack([]);
+  }, []);
+
+  useEffect(() => {
+    if (!fontsLoaded) return;
+
     getUserSettings().then((settings) => {
       if (!settings.safetyAcknowledged) {
         setShowFullSafety(true);
-      } else {
-        setCurrentScreen('TechniqueSelection');
       }
+      if (!settings.hasSeenWelcome) {
+        setWelcomeMode('onboarding');
+        setOverlayStack(['welcome']);
+      }
+      setInitialLoadDone(true);
+      SplashScreen.hideAsync();
     });
+  }, [fontsLoaded]);
+
+  const completeOnboarding = async () => {
+    const settings = await getUserSettings();
+    await saveUserSettings({ hasSeenWelcome: true });
+    clearOverlays();
+    setActiveTab('breathe');
+    if (!settings.safetyAcknowledged) {
+      setShowFullSafety(true);
+    }
   };
 
   const handleFullSafetyContinue = async () => {
-    await saveUserSettings({ safetyAcknowledged: true });
+    await saveUserSettings({ safetyAcknowledged: true, hasSeenWelcome: true });
     setShowFullSafety(false);
-    setCurrentScreen('TechniqueSelection');
-  };
-
-  const navigateBack = () => {
-    setCurrentScreen('Welcome');
+    clearOverlays();
+    setActiveTab('breathe');
   };
 
   const navigateToDetail = (technique: BreathingTechnique) => {
     setSelectedTechnique(technique);
-    setCurrentScreen('TechniqueDetail');
-  };
-
-  const navigateBackFromDetail = () => {
-    setCurrentScreen('TechniqueSelection');
+    pushOverlay('detail');
   };
 
   const handleStartSession = (config: SessionConfig) => {
@@ -74,82 +111,131 @@ export default function App() {
   const handleShortSafetyContinue = () => {
     if (pendingSessionConfig) {
       setSessionConfig(pendingSessionConfig);
+      setSessionKey((k) => k + 1);
       setPendingSessionConfig(null);
       setShowShortSafety(false);
-      setCurrentScreen('Breathing');
+      pushOverlay('breathing');
     }
   };
 
-  const navigateBackFromBreathing = () => {
-    setSessionConfig(null);
-    setCurrentScreen('TechniqueSelection');
-  };
-
-  const navigateToSettings = () => {
-    setCurrentScreen('Settings');
-  };
-
-  const navigateBackFromSettings = () => {
-    setCurrentScreen('TechniqueSelection');
+  const handleBreatheAgain = () => {
+    setSessionKey((k) => k + 1);
   };
 
   const navigateToHistory = () => {
-    setCurrentScreen('History');
+    pushOverlay('history');
   };
 
-  const navigateBackFromHistory = () => {
-    setCurrentScreen('Settings');
+  const navigateToAbout = () => {
+    setWelcomeMode('about');
+    pushOverlay('welcome');
   };
 
-  const navigateToProgress = () => {
-    setCurrentScreen('Progress');
+  const handleStartSessionFromEmpty = () => {
+    setActiveTab('breathe');
   };
 
-  const navigateBackFromProgress = () => {
-    setCurrentScreen('TechniqueSelection');
-  };
+  const handleHardwareBack = useCallback(() => {
+    const stack = overlayStackRef.current;
+    if (stack.length === 0) {
+      return true;
+    }
+    if (stack[stack.length - 1] === 'breathing') {
+      return false;
+    }
+    popOverlay();
+    return true;
+  }, [popOverlay]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handleHardwareBack);
+    return () => subscription.remove();
+  }, [handleHardwareBack]);
+
+  if (!fontsLoaded || !initialLoadDone) {
+    return null;
+  }
 
   const isPowerSession = sessionConfig?.technique.kind === 'power';
 
+  const renderOverlay = () => {
+    switch (currentOverlay) {
+      case 'welcome':
+        return (
+          <WelcomeScreen
+            mode={welcomeMode}
+            onNavigate={welcomeMode === 'onboarding' ? completeOnboarding : undefined}
+            onBack={welcomeMode === 'about' ? popOverlay : undefined}
+          />
+        );
+      case 'detail':
+        return selectedTechnique ? (
+          <TechniqueDetailScreen
+            technique={selectedTechnique}
+            onBack={popOverlay}
+            onStart={handleStartSession}
+          />
+        ) : null;
+      case 'breathing':
+        return sessionConfig && !isPowerSession ? (
+          <BreathingScreen
+            key={sessionKey}
+            config={sessionConfig}
+            onBack={popOverlay}
+            onBreatheAgain={handleBreatheAgain}
+          />
+        ) : sessionConfig && isPowerSession ? (
+          <PowerBreathingScreen
+            key={sessionKey}
+            config={sessionConfig}
+            onBack={popOverlay}
+            onBreatheAgain={handleBreatheAgain}
+          />
+        ) : null;
+      case 'history':
+        return (
+          <HistoryScreen
+            onBack={popOverlay}
+            onStartSession={() => {
+              clearOverlays();
+              setActiveTab('breathe');
+            }}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'breathe':
+        return <TechniqueSelectionScreen onViewDetail={navigateToDetail} />;
+      case 'progress':
+        return (
+          <ProgressScreen showBack={false} onStartSession={handleStartSessionFromEmpty} />
+        );
+      case 'settings':
+        return (
+          <SettingsScreen
+            showBack={false}
+            onNavigateToHistory={navigateToHistory}
+            onNavigateToAbout={navigateToAbout}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <>
-      {currentScreen === 'Welcome' && (
-        <WelcomeScreen onNavigate={navigateToTechniqueSelection} />
-      )}
-      {currentScreen === 'TechniqueSelection' && (
-        <TechniqueSelectionScreen
-          onViewDetail={navigateToDetail}
-          onTrackProgress={navigateToProgress}
-          onSettings={navigateToSettings}
-          onBack={navigateBack}
-        />
-      )}
-      {currentScreen === 'TechniqueDetail' && selectedTechnique && (
-        <TechniqueDetailScreen
-          technique={selectedTechnique}
-          onBack={navigateBackFromDetail}
-          onStart={handleStartSession}
-        />
-      )}
-      {currentScreen === 'Breathing' && sessionConfig && !isPowerSession && (
-        <BreathingScreen config={sessionConfig} onBack={navigateBackFromBreathing} />
-      )}
-      {currentScreen === 'Breathing' && sessionConfig && isPowerSession && (
-        <PowerBreathingScreen config={sessionConfig} onBack={navigateBackFromBreathing} />
-      )}
-      {currentScreen === 'History' && (
-        <HistoryScreen onBack={navigateBackFromHistory} />
-      )}
-      {currentScreen === 'Progress' && (
-        <ProgressScreen onBack={navigateBackFromProgress} />
-      )}
-      {currentScreen === 'Settings' && (
-        <SettingsScreen
-          onBack={navigateBackFromSettings}
-          onNavigateToHistory={navigateToHistory}
-          onNavigateToProgress={navigateToProgress}
-        />
-      )}
+    <SafeAreaProvider>
+      <View style={{ flex: 1 }}>
+        {overlayStack.length > 0 ? renderOverlay() : renderTabContent()}
+        {showTabBar ? (
+          <MainTabBar activeTab={activeTab} onTabPress={setActiveTab} />
+        ) : null}
+      </View>
 
       <SafetyNoticeModal
         visible={showFullSafety}
@@ -162,7 +248,7 @@ export default function App() {
         onContinue={handleShortSafetyContinue}
       />
 
-      <StatusBar style="auto" />
-    </>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+    </SafeAreaProvider>
   );
 }

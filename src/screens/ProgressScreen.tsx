@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, ScrollView } from 'react-native';
+import { RefreshControl, View } from 'react-native';
 import { UserProgress } from '../types';
 import { getUserProgress } from '../utils/storage';
+import { Button, Card, Header, Screen, TAB_BAR_HEIGHT, Text } from '../components/ui';
+import { spacing } from '../theme/spacing';
 
 interface ProgressScreenProps {
-  onBack: () => void;
+  onBack?: () => void;
+  showBack?: boolean;
+  onStartSession?: () => void;
 }
 
-export const ProgressScreen: React.FC<ProgressScreenProps> = ({ onBack }) => {
+export const ProgressScreen: React.FC<ProgressScreenProps> = ({
+  onBack,
+  showBack = false,
+  onStartSession,
+}) => {
   const [progress, setProgress] = useState<UserProgress>({
     totalSessions: 0,
     totalTime: 0,
@@ -42,138 +50,81 @@ export const ProgressScreen: React.FC<ProgressScreenProps> = ({ onBack }) => {
   };
 
   const getStreakMessage = (streak: number): string => {
-    if (streak === 0) {
-      return 'Start your journey today!';
-    } else if (streak === 1) {
-      return 'Great start! Keep it going!';
-    } else if (streak < 7) {
-      return 'You\'re building a great habit!';
-    } else if (streak < 30) {
-      return 'Amazing consistency!';
-    } else {
-      return 'You\'re a breathing master!';
-    }
+    if (streak === 0) return 'Start your journey today';
+    if (streak === 1) return 'Great start — keep it going';
+    if (streak < 7) return "You're building a habit";
+    if (streak < 30) return 'Amazing consistency';
+    return "You're a breathing master";
   };
 
+  const isEmpty = progress.totalSessions === 0;
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
+    <Screen
+      scroll
+      padded={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <TouchableOpacity onPress={onBack} style={styles.backButton}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
+      <Header
+        onBack={showBack ? onBack : undefined}
+        title="Your progress"
+      />
 
-      <Text style={styles.title}>Your Progress</Text>
-
-      <View style={styles.statsContainer}>
-        {/* Current Streak */}
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{progress.currentStreak}</Text>
-          <Text style={styles.statLabel}>Day Streak</Text>
-          <Text style={styles.statMessage}>{getStreakMessage(progress.currentStreak)}</Text>
-        </View>
-
-        {/* Total Sessions */}
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{progress.totalSessions}</Text>
-          <Text style={styles.statLabel}>Total Sessions</Text>
-        </View>
-
-        {/* Total Time */}
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{formatTime(progress.totalTime)}</Text>
-          <Text style={styles.statLabel}>Total Time</Text>
-        </View>
-
-        {/* Longest Streak */}
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{progress.longestStreak}</Text>
-          <Text style={styles.statLabel}>Longest Streak</Text>
-        </View>
-      </View>
-
-      {progress.totalSessions === 0 && (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            Complete your first breathing session to start tracking your progress!
+      <View style={{ paddingHorizontal: spacing.lg, paddingBottom: TAB_BAR_HEIGHT + spacing.xl }}>
+        <Card style={{ marginBottom: spacing.lg, alignItems: 'center' }}>
+          <Text variant="stat" color="accent">
+            {progress.currentStreak}
           </Text>
+          <Text variant="caption" color="secondary" style={{ marginTop: spacing.xs }}>
+            day streak
+          </Text>
+          <Text variant="body" color="secondary" align="center" style={{ marginTop: spacing.md }}>
+            {getStreakMessage(progress.currentStreak)}
+          </Text>
+        </Card>
+
+        <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg }}>
+          <Card style={{ flex: 1, alignItems: 'center' }}>
+            <Text variant="stat" color="accent" style={{ fontSize: 32, lineHeight: 40 }}>
+              {progress.totalSessions}
+            </Text>
+            <Text variant="caption" color="secondary" style={{ marginTop: spacing.xs }}>
+              sessions
+            </Text>
+          </Card>
+          <Card style={{ flex: 1, alignItems: 'center' }}>
+            <Text variant="stat" color="accent" style={{ fontSize: 32, lineHeight: 40 }}>
+              {formatTime(progress.totalTime)}
+            </Text>
+            <Text variant="caption" color="secondary" style={{ marginTop: spacing.xs }}>
+              total time
+            </Text>
+          </Card>
         </View>
-      )}
-    </ScrollView>
+
+        <Card style={{ marginBottom: spacing.xl, alignItems: 'center' }}>
+          <Text variant="stat" color="accent" style={{ fontSize: 32, lineHeight: 40 }}>
+            {progress.longestStreak}
+          </Text>
+          <Text variant="caption" color="secondary" style={{ marginTop: spacing.xs }}>
+            longest streak
+          </Text>
+        </Card>
+
+        {isEmpty ? (
+          <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
+            <Text variant="title" align="center" style={{ marginBottom: spacing.md }}>
+              No sessions yet
+            </Text>
+            <Text variant="body" color="secondary" align="center" style={{ marginBottom: spacing.xl }}>
+              Complete your first breathing session to start tracking your progress.
+            </Text>
+            {onStartSession ? (
+              <Button label="Start breathing" onPress={onStartSession} fullWidth />
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#E8EAF6',
-  },
-  content: {
-    paddingBottom: 40,
-  },
-  backButton: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-  },
-  backButtonText: {
-    fontSize: 18,
-    color: '#3F51B5',
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#283593',
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  statsContainer: {
-    paddingHorizontal: 16,
-  },
-  statCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  statValue: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#283593',
-    marginBottom: 8,
-  },
-  statLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#5C6BC0',
-    marginBottom: 4,
-  },
-  statMessage: {
-    fontSize: 14,
-    color: '#546E7A',
-    textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  emptyContainer: {
-    paddingHorizontal: 32,
-    paddingTop: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#5C6BC0',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-});
-

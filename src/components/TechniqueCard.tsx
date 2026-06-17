@@ -1,30 +1,18 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, View, Dimensions } from 'react-native';
+import { Pressable, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingTechnique } from '../types';
+import { getTechniqueAccent } from '../theme/colors';
+import { useTheme } from '../theme';
+import { continuousCurve, radius, spacing } from '../theme/spacing';
+import { useReduceMotion } from '../hooks/use-reduce-motion';
+import { triggerButtonPress } from '../utils/feedback';
+import { Text } from './ui/Text';
 
 interface TechniqueCardProps {
   technique: BreathingTechnique;
   onPress: () => void;
 }
-
-const { width } = Dimensions.get('window');
-const horizontalPadding = 16;
-const gap = 12;
-const cardWidth = (width - horizontalPadding * 2 - gap) / 2;
-
-const getCardColors = (id: string): string[] => {
-  const colors: Record<string, string[]> = {
-    'calm-box': ['#4ECDC4', '#6EDDD6', '#8EEDE8'],
-    'deep-relaxation': ['#95E1D3', '#AAE8DB', '#BFEFE3'],
-    'balanced-breath': ['#FCBAD3', '#FDC9DB', '#FED8E3'],
-    'sleep-wind-down': ['#A8D8EA', '#B8E0ED', '#C8E8F0'],
-    'focus-boost': ['#FFD3A5', '#FFDDB5', '#FFE7C5'],
-    'power-breathing': ['#FF6B6B', '#FF8E8E', '#FFB3B3'],
-    'gentle-calm': ['#B4E7CE', '#C0ECD6', '#CCF1DE'],
-    'morning-reset': ['#FFE082', '#FFE699', '#FFECB3'],
-  };
-  return colors[id] || ['#E1BEE7', '#E8C5ED', '#EFCCF3'];
-};
 
 const getPatternLabel = (technique: BreathingTechnique): string => {
   if (technique.kind === 'power') return 'Multi-phase';
@@ -35,77 +23,77 @@ const getPatternLabel = (technique: BreathingTechnique): string => {
 };
 
 export const TechniqueCard: React.FC<TechniqueCardProps> = ({ technique, onPress }) => {
-  const colors = getCardColors(technique.id);
+  const { width } = useWindowDimensions();
+  const { shadow } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const horizontalPadding = 16;
+  const gap = 12;
+  const cardWidth = (width - horizontalPadding * 2 - gap) / 2;
+  const accent = getTechniqueAccent(technique.id);
+
+  const handlePress = () => {
+    triggerButtonPress();
+    onPress();
+  };
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.card} activeOpacity={0.8}>
-      <View style={[styles.cardContent, { backgroundColor: colors[0] }]}>
-        <Text style={styles.emoji}>{technique.emoji}</Text>
-        <View style={styles.textContainer}>
-          <Text style={styles.name} numberOfLines={2}>
-            {technique.name}
-          </Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {technique.subtitle}
-          </Text>
-          <Text style={styles.pattern}>{getPatternLabel(technique)}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <Pressable
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={`${technique.name}, ${technique.subtitle}`}
+      style={({ pressed }) => [
+        {
+          width: cardWidth,
+          height: cardWidth * 1.15,
+          marginBottom: spacing.lg,
+          marginHorizontal: gap / 2,
+          borderRadius: radius.md,
+          overflow: 'hidden',
+          opacity: pressed ? 0.9 : 1,
+          transform: reduceMotion ? undefined : [{ scale: pressed ? 0.98 : 1 }],
+          ...shadow,
+          ...continuousCurve,
+        },
+      ]}
+    >
+      <LinearGradient
+        colors={accent.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          flex: 1,
+          padding: spacing.lg,
+          justifyContent: 'flex-end',
+        }}
+      >
+        <Text style={{ fontSize: 28, marginBottom: spacing.sm }}>{technique.emoji}</Text>
+        <Text
+          color="onAccent"
+          style={{
+            fontFamily: 'PlusJakartaSans_600SemiBold',
+            fontSize: 16,
+            marginBottom: spacing.xs,
+          }}
+          numberOfLines={2}
+        >
+          {technique.name}
+        </Text>
+        <Text
+          color="onAccent"
+          variant="caption"
+          style={{ opacity: 0.9, marginBottom: spacing.xs }}
+          numberOfLines={1}
+        >
+          {technique.subtitle}
+        </Text>
+        <Text
+          color="onAccent"
+          variant="caption"
+          style={{ opacity: 0.85, fontFamily: 'PlusJakartaSans_600SemiBold' }}
+        >
+          {getPatternLabel(technique)}
+        </Text>
+      </LinearGradient>
+    </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    width: cardWidth,
-    height: cardWidth * 1.2,
-    marginBottom: 16,
-    marginRight: gap / 2,
-    marginLeft: gap / 2,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  cardContent: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'flex-end',
-    borderRadius: 12,
-  },
-  emoji: {
-    fontSize: 32,
-    position: 'absolute',
-    top: 12,
-    left: 12,
-  },
-  textContainer: {
-    marginTop: 'auto',
-  },
-  name: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  pattern: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-});

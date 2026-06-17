@@ -1,19 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { clearAllData, getUserSettings, saveUserSettings } from '../utils/storage';
 import { SettingToggle } from '../components/SettingToggle';
 import { HEADPHONE_WARNING } from '../data/safetyContent';
+import { Button, Card, Header, Screen, TAB_BAR_HEIGHT, Text } from '../components/ui';
+import { triggerButtonPress } from '../utils/feedback';
+import { spacing } from '../theme/spacing';
 
 interface SettingsScreenProps {
-  onBack: () => void;
+  onBack?: () => void;
+  showBack?: boolean;
   onNavigateToHistory?: () => void;
-  onNavigateToProgress?: () => void;
+  onNavigateToAbout?: () => void;
 }
+
+const SettingRow: React.FC<{ label: string; onPress: () => void }> = ({ label, onPress }) => (
+  <Pressable
+    onPress={() => {
+      triggerButtonPress();
+      onPress();
+    }}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+    style={{ paddingVertical: spacing.md, minHeight: 44, justifyContent: 'center' }}
+  >
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Text variant="body" style={{ fontFamily: 'PlusJakartaSans_600SemiBold' }}>
+        {label}
+      </Text>
+      <Text color="accent">›</Text>
+    </View>
+  </Pressable>
+);
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onBack,
+  showBack = false,
   onNavigateToHistory,
-  onNavigateToProgress,
+  onNavigateToAbout,
 }) => {
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -37,19 +61,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const handleClearAllData = () => {
     Alert.alert(
-      'Clear All Data',
-      'This will delete your session history, progress, and settings. This action cannot be undone.',
+      'Clear all data',
+      'This will delete your session history, progress, and settings. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear All',
+          text: 'Clear all',
           style: 'destructive',
           onPress: async () => {
             try {
               await clearAllData();
               setVibrationEnabled(true);
               setSoundEnabled(true);
-              Alert.alert('Success', 'All data has been cleared.');
+              Alert.alert('Done', 'All data has been cleared.');
             } catch {
               Alert.alert('Error', 'Failed to clear data.');
             }
@@ -60,168 +84,89 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={onBack} style={styles.backButton}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
+    <Screen scroll padded={false}>
+      <Header onBack={showBack ? onBack : undefined} title="Settings" />
 
-      <Text style={styles.title}>Settings</Text>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Session Options</Text>
-        <SettingToggle
-          label="Vibration"
-          value={vibrationEnabled}
-          onValueChange={handleVibrationChange}
-        />
-        <SettingToggle
-          label="Breathing Sound"
-          value={soundEnabled}
-          onValueChange={handleSoundChange}
-        />
-        <Text style={styles.headphoneWarning}>{HEADPHONE_WARNING}</Text>
-      </View>
-
-      {onNavigateToHistory && (
-        <TouchableOpacity onPress={onNavigateToHistory} style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Session History</Text>
-          <Text style={styles.settingArrow}>→</Text>
-        </TouchableOpacity>
-      )}
-
-      {onNavigateToProgress && (
-        <TouchableOpacity onPress={onNavigateToProgress} style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Progress</Text>
-          <Text style={styles.settingArrow}>→</Text>
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <View style={styles.aboutCard}>
-          <Text style={styles.appName}>Calm Breathing</Text>
-          <Text style={styles.version}>Version 1.0.0</Text>
-          <Text style={styles.description}>
-            A minimal breathing app to help you find peace, reduce stress, and improve your
-            wellbeing through guided breathing exercises.
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingBottom: TAB_BAR_HEIGHT + spacing.xxxl,
+          gap: spacing.xl,
+        }}
+      >
+        <View>
+          <Text
+            variant="caption"
+            color="secondary"
+            style={{ marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.8 }}
+          >
+            Preferences
           </Text>
+          <Card>
+            <SettingToggle
+              label="Vibration"
+              value={vibrationEnabled}
+              onValueChange={handleVibrationChange}
+              description="Haptic feedback during sessions"
+            />
+            <View style={{ height: 1, backgroundColor: 'rgba(128,128,128,0.15)' }} />
+            <SettingToggle
+              label="Breathing sound"
+              value={soundEnabled}
+              onValueChange={handleSoundChange}
+              description="Audio cues for inhale and exhale"
+            />
+            <Text variant="caption" color="tertiary" style={{ marginTop: spacing.sm }}>
+              {HEADPHONE_WARNING}
+            </Text>
+          </Card>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <TouchableOpacity onPress={handleClearAllData} style={styles.dangerButton}>
-          <Text style={styles.dangerButtonText}>Clear All Data</Text>
-        </TouchableOpacity>
+        <View>
+          <Text
+            variant="caption"
+            color="secondary"
+            style={{ marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.8 }}
+          >
+            Data
+          </Text>
+          <Card padded={false} style={{ paddingHorizontal: spacing.lg }}>
+            {onNavigateToHistory ? (
+              <SettingRow label="Session history" onPress={onNavigateToHistory} />
+            ) : null}
+          </Card>
+        </View>
+
+        <View>
+          <Text
+            variant="caption"
+            color="secondary"
+            style={{ marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.8 }}
+          >
+            About
+          </Text>
+          <Card>
+            {onNavigateToAbout ? (
+              <>
+                <SettingRow label="About Calm Breathing" onPress={onNavigateToAbout} />
+                <View style={{ height: 1, backgroundColor: 'rgba(128,128,128,0.15)', marginVertical: spacing.sm }} />
+              </>
+            ) : null}
+            <Text variant="title" style={{ marginBottom: spacing.xs }}>
+              Calm Breathing
+            </Text>
+            <Text variant="caption" color="secondary" style={{ marginBottom: spacing.lg }}>
+              Version 1.0.0
+            </Text>
+            <Text variant="body" color="secondary">
+              A minimal breathing app to help you find peace, reduce stress, and improve your wellbeing
+              through guided breathing exercises.
+            </Text>
+          </Card>
+        </View>
+
+        <Button label="Clear all data" onPress={handleClearAllData} variant="danger" fullWidth />
       </View>
-    </ScrollView>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#E8EAF6',
-  },
-  content: {
-    paddingBottom: 40,
-  },
-  backButton: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-  },
-  backButtonText: {
-    fontSize: 18,
-    color: '#3F51B5',
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#283593',
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  section: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#3949AB',
-    marginBottom: 12,
-  },
-  headphoneWarning: {
-    fontSize: 13,
-    color: '#90A4AE',
-    fontStyle: 'italic',
-    marginTop: 4,
-    lineHeight: 18,
-    paddingHorizontal: 4,
-  },
-  settingItem: {
-    backgroundColor: '#fff',
-    padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  settingLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#283593',
-  },
-  settingArrow: {
-    fontSize: 20,
-    color: '#5C6BC0',
-  },
-  aboutCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#283593',
-    marginBottom: 8,
-  },
-  version: {
-    fontSize: 14,
-    color: '#5C6BC0',
-    marginBottom: 16,
-    fontWeight: '500',
-  },
-  description: {
-    fontSize: 16,
-    color: '#546E7A',
-    lineHeight: 24,
-  },
-  dangerButton: {
-    backgroundColor: '#F44336',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  dangerButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});

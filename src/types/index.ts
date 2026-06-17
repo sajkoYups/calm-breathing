@@ -48,6 +48,7 @@ export interface UserSettings {
   vibrationEnabled: boolean;
   soundEnabled: boolean;
   safetyAcknowledged: boolean;
+  hasSeenWelcome: boolean;
 }
 
 export interface SessionConfig {
